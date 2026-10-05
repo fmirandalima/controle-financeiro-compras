@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Empresa, Perfil } from '../types'
 import { brl } from '../lib/format'
+import { NotaFiscalLancamento } from './NotaFiscalLancamento'
 
  type Compra = {
   id: string
@@ -210,6 +211,8 @@ export function PurchasesPage({ profile, empresas }: Props) {
       <div className="table-wrap"><table className="data-table purchase-table"><thead><tr><th>Empresa</th><th>Requisição</th><th>OC</th><th>Data compra</th><th>Pedido Mercado Livre</th><th>Cartão</th><th>NF total</th><th>Valor cartão</th><th>Entrega</th><th>NF Lançada?</th><th>Observação</th><th>Status</th><th></th></tr></thead>
       <tbody>{visible.length ? visible.map(r => <tr key={r.id}><td><b>{r.empresa_apelido ?? '—'}</b></td><td><b>{r.nro_requisicao}</b></td><td>{r.nro_oc ?? <span className="warn">Não informado</span>}</td><td>{toDateInput(r.data_compra).split('-').reverse().join('/')}</td><td>{r.ml_order_id ?? '—'}</td><td>•••• {r.ultimos_digitos_cartao ?? '—'}</td><td>{brl(r.valor_nf_total)}</td><td>{brl(r.valor_operacao_cartao)}</td><td>{r.mercado_entregue === true ? 'Sim' : r.mercado_entregue === false ? 'Não' : '—'}</td><td>{canEditErp ? <input type="checkbox" checked={!!r.status_erp} onChange={async e => { const checked = e.target.checked; const { error } = await supabase.rpc('atualizar_status_erp_compra', { p_id: r.id, p_status_erp: checked }); if (error) setMessage(`Não foi possível alterar NF Lançada?: ${error.message}`); else setRows(prev => prev.map(x => x.id === r.id ? { ...x, status_erp: checked } : x)) }} /> : <input type="checkbox" checked={!!r.status_erp} readOnly />} </td><td>{r.observacao ?? '—'}</td><td><span className="tag">{r.status_conferencia}</span></td><td>{canEdit && <button className="mini" onClick={() => edit(r)}>Editar</button>}</td></tr>) : <tr><td colSpan={14}>Nenhum lançamento encontrado.</td></tr>}</tbody></table></div>
       <div className="pagination"><button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>Página {page} de {pages} · {rows.length} registro(s)</span><button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Próxima</button></div>
+
+      {canEdit && <NotaFiscalLancamento rows={rows} canEdit={canEdit} />}
 
       {canEdit && <div className="import-box"><h3>Importação de dados do Mercado Livre</h3><p className="muted">Use arquivos <b>CSV, TXT ou Excel</b> para carga manual. Os dados são pré-visualizados antes do processamento.</p>
         <div className="form-grid"><label>Qual empresa corresponde aos arquivos que você está importando? *<select value={importEmpresa} onChange={e => setImportEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label></div>
