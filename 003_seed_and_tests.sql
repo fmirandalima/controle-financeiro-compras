@@ -1,0 +1,22 @@
+-- DADOS INICIAIS E TESTES MANUAIS
+-- 1) Crie dois usuários no Supabase Dashboard > Authentication > Users:
+--    faturamento@controle.local / senha forte
+--    financeiro@controle.local / senha forte
+-- 2) Copie os UUIDs gerados e execute:
+--
+-- insert into public.perfis(id,nome,username,role) values
+-- ('UUID_FATURAMENTO','Equipe Faturamento','faturamento','FATURAMENTO'),
+-- ('UUID_FINANCEIRO','Equipe Financeiro','financeiro','FINANCEIRO');
+--
+-- 3) Teste:
+--    FATURAMENTO deve conseguir INSERT/UPDATE operacional.
+--    FATURAMENTO não consegue alterar sankhya_ok/conferencia_obs.
+--    FINANCEIRO não consegue alterar dados de compra.
+--    Nenhum perfil consegue DELETE.
+--
+-- Importante: a senha não fica nesta tabela. O Supabase Auth gerencia senha, sessão e JWT.
+
+-- Exemplo de CSV compatível com o importador:
+-- Data,Movimentação,Descrição,Valor,Meio de pagamento,Últimos dígitos do cartão,Titular do cartão,Categoria,Recibos/notas
+-- 11/09/2026,Compra nacional,MERCADO* MERCADOLIVRE OSASCO BR,-24,69,Compra Eduardo | Corporativo,6611,Compra Eduardo | Corporativo,Marketplace,0
+-- 11/09/2026,Estorno,ESTABELECIMENTO PARCELAMENTO DE COMPRA,1007,64,Compra Eduardo | Corporativo,6611,Compra Eduardo | Corporativo,Outros,0

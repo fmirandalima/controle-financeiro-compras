@@ -1,0 +1,30 @@
+SIGCF / Controle Financeiro
+Versão final preparada para commit: 1.3.0
+Data: 23/09/2026
+
+CONTEÚDO
+- Frontend atualizado com permissões por tela/ação.
+- Tela Administração.
+- Correção de ADMIN no trigger de transações.
+- Importação separada de edição.
+- Proteção de mutações do módulo Compras no banco.
+- Migration 007.
+- Documentação e roteiro de testes.
+
+ARQUIVOS PRINCIPAIS
+src/src/lib/permissions.ts
+src/src/components/PermissionsAdminPage.tsx
+src/src/components/PurchasesPage.tsx
+src/src/components/ImportPanel.tsx
+src/src/components/TransactionTable.tsx
+src/src/pages/AppPage.tsx
+src/src/types.ts
+src/supabase/007_permissions_v2_20260923.sql
+src/docs/VERSAO_1.3.0_PERMISSOES_2026-09-23.md
+src/docs/TESTE_PERMISSOES_1.3.0.md
+
+VALIDAÇÃO
+- Transpilação sintática dos arquivos alterados: OK.
+- Build completo: NÃO executado porque o pacote entregue não contém node_modules.
+- Migration: NÃO executada no Supabase.
+- Git commit/push: NÃO executado nesta sessão.

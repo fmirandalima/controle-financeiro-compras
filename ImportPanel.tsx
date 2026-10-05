@@ -1,0 +1,118 @@
+import { useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { parseCsv } from '../lib/importer'
+import { extractImageText, extractPdfText } from '../lib/documentReader'
+import { parseDocumentText } from '../lib/documentParser'
+import type { ImportRow } from '../types'
+
+export function ImportPanel({ empresaId, canImport, onDone }: { empresaId: string; canImport: boolean; onDone: () => void }) {
+  const [text, setText] = useState('')
+  const [rows, setRows] = useState<ImportRow[]>([])
+  const [errors, setErrors] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [documentName, setDocumentName] = useState('')
+  const [documentPreview, setDocumentPreview] = useState('')
+  const [ocrBusy, setOcrBusy] = useState(false)
+
+  const preview = useMemo(() => rows.slice(0, 8), [rows])
+
+  function parse() {
+    const result = parseCsv(text)
+    setRows(result.rows)
+    setErrors(result.errors)
+    setMessage(`${result.rows.length} linha(s) válida(s) para prévia.`)
+  }
+
+
+  async function readDocument(file: File) {
+    setOcrBusy(true)
+    setMessage(`Lendo ${file.name}...`)
+    setDocumentName(file.name)
+    try {
+      const result = file.type === 'application/pdf'
+        ? await extractPdfText(file)
+        : await extractImageText(file, p => setMessage(`OCR ${Math.round(p * 100)}% — ${file.name}`))
+      if (result.previewUrl) setDocumentPreview(result.previewUrl)
+      if (!result.text.trim()) {
+        setMessage('Nenhum texto foi encontrado. Para PDF escaneado, prefira uma imagem ou faça o OCR antes da importação.')
+        return
+      }
+      const parsed = parseDocumentText(result.text)
+      if (parsed.row) setRows([parsed.row])
+      setErrors(parsed.warnings)
+      setMessage(`Prévia gerada a partir de ${file.name}. Revise os campos antes de confirmar.`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Falha ao ler o documento.')
+    } finally {
+      setOcrBusy(false)
+    }
+  }
+
+  async function confirm() {
+    if (!canImport) { setMessage('Você não possui permissão para importar nesta tela.'); return }
+    if (!rows.length) return
+    setBusy(true)
+    setMessage('')
+    try {
+      const payload = rows.map(r => ({
+        p_empresa_id: empresaId,
+        p_data: r.data,
+        p_movimentacao: r.movimentacao,
+        p_descricao: r.descricao ?? null,
+        p_valor: r.valor,
+        p_meio_pagamento: r.meio_pagamento ?? null,
+        p_ultimos_digitos_cartao: r.ultimos_digitos_cartao ?? null,
+        p_titular_cartao: r.titular_cartao ?? null,
+        p_categoria: r.categoria ?? null,
+        p_qtd_recibos_notas: r.qtd_recibos_notas ?? 0,
+      }))
+
+      let inserted = 0
+      let duplicates = 0
+      for (const p of payload) {
+        const { data, error } = await supabase.rpc('importar_transacao', p)
+        if (error) throw error
+        if (data === 'DUPLICADA') duplicates++
+        else inserted++
+      }
+
+      setMessage(`Importação concluída: ${inserted} inserida(s), ${duplicates} duplicada(s) ignorada(s).`)
+      setRows([])
+      setText('')
+      onDone()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Falha na importação.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!canImport) {
+    return <section className="panel"><div className="error-box">Você pode visualizar a tela Importação, mas não possui a ação <strong>importar</strong>.</div></section>
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div><h2>Importação</h2><p className="muted">CSV ou colar texto. Nada entra no banco antes da confirmação.</p></div>
+      </div>
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Cole aqui o CSV exportado da Conta Simples..." rows={7} />
+      <div className="actions">
+        <label className="file-button">Selecionar CSV<input type="file" accept=".csv,.pdf,.jpg,.jpeg,.png,.webp" onChange={async e => { const file = e.target.files?.[0]; if (file) setText(await file.text()) }} /></label>
+        <label className="file-button">Ler PDF<input type="file" accept="application/pdf,.pdf" onChange={async e => { const file = e.target.files?.[0]; if (file) await readDocument(file) }} /></label>
+        <label className="file-button">Ler imagem (OCR)<input type="file" accept="image/*" onChange={async e => { const file = e.target.files?.[0]; if (file) await readDocument(file) }} /></label>
+        <button onClick={parse} disabled={!text.trim() || ocrBusy}>Validar e visualizar</button>
+        <button className="primary" onClick={confirm} disabled={busy || ocrBusy || !rows.length}>{busy ? 'Importando...' : 'Confirmar importação'}</button>
+      </div>
+      {documentName && <div className="notice">Documento: <strong>{documentName}</strong>. A leitura não grava nada no banco até a confirmação.</div>}
+      {documentPreview && <div className="document-preview"><img src={documentPreview} alt="Prévia do documento" /></div>}
+      {message && <div className="notice">{message}</div>}
+      {!!errors.length && <div className="error-box"><strong>Erros:</strong>{errors.slice(0, 12).map((e, i) => <div key={i}>{e}</div>)}</div>}
+      {!!preview.length && (
+        <div className="table-wrap"><table><thead><tr><th>Data</th><th>Movimentação</th><th>Descrição</th><th>Valor</th><th>Cartão</th></tr></thead>
+        <tbody>{preview.map((r, i) => <tr key={i}><td>{r.data}</td><td>{r.movimentacao}</td><td>{r.descricao}</td><td>{r.valor.toFixed(2)}</td><td>{r.ultimos_digitos_cartao ?? '—'}</td></tr>)}</tbody></table></div>
+      )}
+    </section>
+  )
+}

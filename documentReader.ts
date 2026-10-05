@@ -1,0 +1,38 @@
+export type DocumentExtraction = {
+  name: string
+  kind: 'pdf' | 'image'
+  text: string
+  previewUrl?: string
+}
+
+declare global {
+  interface Window {
+    pdfjsLib?: any
+    Tesseract?: any
+  }
+}
+
+export async function extractPdfText(file: File): Promise<DocumentExtraction> {
+  if (!window.pdfjsLib) throw new Error('Leitor de PDF não carregado. Verifique sua conexão com a internet e recarregue a página.')
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js'
+  const data = await file.arrayBuffer()
+  const pdf = await window.pdfjsLib.getDocument({ data }).promise
+  const pages: string[] = []
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo)
+    const content = await page.getTextContent()
+    const text = content.items.map((item: any) => item.str ?? '').join(' ').replace(/\s+/g, ' ').trim()
+    if (text) pages.push(text)
+  }
+  return { name: file.name, kind: 'pdf', text: pages.join('\n'), previewUrl: URL.createObjectURL(file) }
+}
+
+export async function extractImageText(file: File, onProgress?: (value: number) => void): Promise<DocumentExtraction> {
+  if (!window.Tesseract) throw new Error('Leitor OCR não carregado. Verifique sua conexão com a internet e recarregue a página.')
+  const result = await window.Tesseract.recognize(file, 'por', {
+    logger: (message: any) => {
+      if (message.status === 'recognizing text' && typeof message.progress === 'number') onProgress?.(message.progress)
+    },
+  })
+  return { name: file.name, kind: 'image', text: result.data.text ?? '', previewUrl: URL.createObjectURL(file) }
+}

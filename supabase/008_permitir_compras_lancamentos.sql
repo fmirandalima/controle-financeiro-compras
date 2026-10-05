@@ -1,0 +1,3 @@
+-- 008_permitir_compras_lancamentos.sql
+-- COMPRAS pode criar e editar lançamentos. FATURAMENTO mantém as mesmas permissões.
+-- NF Lançada? continua exclusivamente FATURAMENTO via atualizar_status_erp_compra.
