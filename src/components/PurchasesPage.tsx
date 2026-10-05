@@ -23,6 +23,7 @@ import { brl } from '../lib/format'
   observacao: string | null
   notas_count: number
   itens_count: number
+  numeros_nf: string | null
 }
 
 type Props = { profile: Perfil; empresas: Empresa[] }
@@ -66,8 +67,18 @@ export function PurchasesPage({ profile, empresas }: Props) {
     if (status) q = q.eq('status_conferencia', status)
     if (search.trim()) {
       const s = search.trim()
-      const numeric = /^\d{1,7}$/.test(s)
-      q = numeric ? q.eq('nro_requisicao', Number(s)) : q.ilike('ml_order_id', `%${s}%`)
+      const safe = s.replace(/[^0-9A-Za-z-]/g, '')
+      if (safe) {
+        const filters = [
+          `ml_order_id.ilike.*${safe}*`,
+          `numeros_nf.ilike.*${safe}*`,
+        ]
+        if (/^\d{1,7}$/.test(safe)) {
+          filters.unshift(`nro_requisicao.eq.${Number(safe)}`)
+          filters.unshift(`nro_oc.eq.${Number(safe)}`)
+        }
+        q = q.or(filters.join(','))
+      }
     }
     const { data, error } = await q
     if (error) setMessage(`Erro ao consultar Compras: ${error.message}`)
@@ -190,7 +201,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
     {mode === 'consulta' ? <>
       <div className="filters purchase-filters">
         <select value={empresa} onChange={e => setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nº Requisição ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
         <select value={status} onChange={e => setStatus(e.target.value)}><option value="">Todos os status</option>{statuses.map(s => <option key={s}>{s}</option>)}</select>
         <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} registros</option>)}</select>
         <button onClick={load} disabled={busy}>{busy ? 'Consultando...' : 'Atualizar'}</button>
