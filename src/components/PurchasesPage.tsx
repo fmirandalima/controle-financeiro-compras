@@ -236,7 +236,6 @@ export function PurchasesPage({ profile, empresas }: Props) {
         <div className="actions"><button onClick={loadMlStatus}>Atualizar status ML</button></div>
       </div>
 
-    {mode === 'consulta' ? <>
       <div className="filters purchase-filters">
         <select value={empresa} onChange={e => setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
