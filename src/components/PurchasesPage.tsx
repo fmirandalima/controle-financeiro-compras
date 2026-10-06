@@ -21,6 +21,10 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   palavra_chave: string | null
   status_conferencia: string
   status_erp: boolean
+  cartao: boolean
+  status_entrega: string | null
+  oc_cancelada: boolean
+  cidade_uf_destino: string | null
   observacao: string | null
   notas_count: number
   itens_count: number
