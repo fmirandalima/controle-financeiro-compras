@@ -95,6 +95,15 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   useEffect(() => { if (!empresa && empresas[0]) setEmpresa(String(empresas[0].id)) }, [empresas])
   useEffect(() => { if (mode === 'consulta') load() }, [empresa, status])
+  async function loadMlStatus() {
+    const { data, error } = await supabase.from('integracoes_empresa')
+      .select('codigo_empresa,empresa_id,status,mensagem').eq('integracao', 'MERCADO_LIVRE')
+    if (error) { setMlMessage('Não foi possível consultar o status Mercado Livre: ' + error.message); return }
+    const next: Record<string, { empresa_id: string | null; status: string; mensagem: string | null }> = {}
+    for (const row of (data ?? []) as Array<{codigo_empresa:string;empresa_id:string|null;status:string;mensagem:string|null}>) next[row.codigo_empresa] = row
+    setMlStatus(next)
+  }
+  useEffect(() => { void loadMlStatus() }, [])
 
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const visible = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize])
@@ -208,6 +217,31 @@ export function PurchasesPage({ profile, empresas }: Props) {
     </div>
 
     {mode === 'consulta' ? <>
+      <div className="import-box">
+        <h3>Integração Mercado Livre por empresa</h3>
+        <p className="muted">Conta Simples não participa deste fluxo. As ações abaixo são exclusivas da importação de compras do Mercado Livre.</p>
+        {mlMessage && <div className="notice">{mlMessage}</div>}
+        <div className="form-grid">
+          {[
+            ['104','Importar compras Mercado Livre — Empresa 104'],
+            ['001','Importar compras Mercado Livre — Empresas Matriz e Filiais 001'],
+          ].map(([codigo,titulo]) => {
+            const s = mlStatus[codigo]
+            const destino = empresas.find(e => e.codigo_empresa === codigo)
+            return <article className="panel" key={codigo}>
+              <h3>{titulo}</h3>
+              <p className="muted">Destino: {destino ? codigo + ' — ' + destino.nome : codigo + ' — empresa não vinculada'}</p>
+              <p><strong>Status:</strong> {s?.status ?? 'NÃO CONFIGURADO'}</p>
+              <button className="primary" onClick={() => {
+                if (!s?.empresa_id || s.status !== 'CONECTADO') setMlMessage('Empresa ' + codigo + ' não está conectada ao Mercado Livre. Nenhuma compra foi importada.')
+                else setMlMessage('Empresa ' + codigo + ' está conectada. O executor seguro da API ainda não foi publicado; nenhuma compra foi importada.')
+              }}>{titulo}</button>
+            </article>
+          })}
+        </div>
+        <div className="actions"><button onClick={loadMlStatus}>Atualizar status ML</button></div>
+      </div>
+
       <div className="filters purchase-filters">
         <select value={empresa} onChange={e => setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
