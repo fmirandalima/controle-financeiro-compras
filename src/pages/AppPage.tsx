@@ -19,6 +19,7 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
   const [rows, setRows] = useState<Transacao[]>([])
   const [tab, setTab] = useState<Tab>('compras')
   const [audit, setAudit] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<Array<{ id: string; empresa_id: string; nro_requisicao: number; valor_operacao_cartao: number; valor_nf_total: number; diferenca_cartao_nf: number; observacao_divergencia: string | null }>>([])
 
   const consulta = useScreenPermissions(profile, 'CONSULTA')
   const importacao = useScreenPermissions(profile, 'IMPORTACAO')
@@ -36,6 +37,21 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
     const { data, error } = await q.limit(1000)
     if (error) alert(error.message)
     else setRows((data ?? []) as Transacao[])
+  }
+
+  async function loadAlerts() {
+    if (!compras.permissions.visualizar) return
+    const { data, error } = await supabase
+      .from('compras_ml')
+      .select('id,empresa_id,nro_requisicao,valor_operacao_cartao,valor_nf_total,diferenca_cartao_nf,observacao_divergencia')
+      .eq('status_conferencia', 'DIVERGENCIA')
+      .order('updated_at', { ascending: false })
+      .limit(20)
+    if (error) {
+      console.error('Não foi possível carregar os avisos financeiros:', error)
+      return
+    }
+    setAlerts((data ?? []) as typeof alerts)
   }
 
   async function loadAudit() {
@@ -57,6 +73,10 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
   useEffect(() => {
     if (tab === 'auditoria') void loadAudit()
   }, [tab, auditoria.permissions.visualizar])
+
+  useEffect(() => {
+    if (compras.permissions.visualizar) void loadAlerts()
+  }, [compras.permissions.visualizar])
 
   useEffect(() => {
     if (!consulta.loading && !importacao.loading && !auditoria.loading && !compras.loading && tab === 'compras' && !compras.permissions.visualizar) {
@@ -88,6 +108,27 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
     </nav>
 
     <section className="content">
+      {compras.permissions.visualizar && alerts.length > 0 && <section className="panel" style={{ border: '1px solid #c98b2e', marginBottom: 16 }}>
+        <div className="panel-head">
+          <div>
+            <h2>⚠ Avisos financeiros</h2>
+            <p className="muted">Há compras em que o total das NF(s) ultrapassa o valor pago no cartão. O lançamento não foi bloqueado.</p>
+          </div>
+          <button onClick={loadAlerts}>Atualizar avisos</button>
+        </div>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Requisição</th><th>Cartão</th><th>NF(s)</th><th>Diferença</th><th>Orientação</th></tr></thead>
+            <tbody>{alerts.map(a => <tr key={a.id}>
+              <td><b>{a.nro_requisicao}</b></td>
+              <td>{brl(Number(a.valor_operacao_cartao))}</td>
+              <td>{brl(Number(a.valor_nf_total))}</td>
+              <td><b>{brl(Number(a.diferenca_cartao_nf))}</b></td>
+              <td>{a.observacao_divergencia ?? 'Financeiro deve verificar a divergência.'}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </section>}
       {tab === 'compras' && compras.permissions.visualizar && <PurchasesPage profile={profile} empresas={empresas} />}
       {tab === 'cartao' && cartao && <CartaoPage profile={profile} empresas={empresas} />}
       {tab === 'consulta' && consulta.permissions.visualizar && <>
