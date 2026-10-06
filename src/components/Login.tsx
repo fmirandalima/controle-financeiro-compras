@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import { cadastrarUsuario, signIn, solicitarAcessoGestor, verificarUsername } from '../lib/auth'
 
 export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () => void }) {
