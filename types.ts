@@ -4,6 +4,7 @@ export type Empresa = {
   id: string
   nome: string
   cnpj: string | null
+  codigo_empresa?: string | null
 }
 
 export type Perfil = {
