@@ -12,5 +12,5 @@ export type Transacao = {
 export type ImportRow = {
   empresa_id?: string; data: string; movimentacao: string; descricao?: string | null; valor: number
   meio_pagamento?: string | null; ultimos_digitos_cartao?: string | null; titular_cartao?: string | null
-  categoria?: string | null; qtd_recibos_notas?: number
+  categoria?: string | null; qtd_recibos_notas?: number; valor_nota_fiscal?: number | null; valor_pago_cartao?: number | null; comprovante_conta_simples?: boolean; fingerprint?: string | null
 }
