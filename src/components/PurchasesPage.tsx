@@ -62,6 +62,8 @@ export function PurchasesPage({ profile, empresas }: Props) {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<Array<Record<string, string>>>([])
   const [importEmpresa, setImportEmpresa] = useState('')
+  const [mlStatus, setMlStatus] = useState<Record<string, { empresa_id: string | null; status: string; mensagem: string | null }>>({})
+  const [mlMessage, setMlMessage] = useState('')
   const canEdit = profile.role === 'FATURAMENTO' || profile.role === 'COMPRAS'
   const canEditErp = profile.role === 'FATURAMENTO'
 
