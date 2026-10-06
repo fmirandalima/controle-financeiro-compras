@@ -25,6 +25,19 @@ type Props = {
   canEdit: boolean
 }
 
+type Candidate = {
+  id: string
+  data: string
+  descricao: string | null
+  valor: number
+  valor_pago_cartao: number | null
+  ultimos_digitos_cartao: string | null
+  meio_pagamento: string | null
+  exato: boolean
+  diferenca_valor: number
+  diferenca_dias: number
+}
+
 function parseNumber(value: string) {
   const normalized = value.replace(/\./g, '').replace(',', '.')
   const n = Number(normalized)
@@ -45,6 +58,8 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
   const [notas, setNotas] = useState<Nota[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [candidateBusy, setCandidateBusy] = useState(false)
 
   const selected = useMemo(() => rows.find(r => r.id === compraId) ?? null, [rows, compraId])
   const nfTotal = notas.reduce((sum, n) => sum + Number(n.valor_total || 0), 0)
@@ -74,6 +89,7 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
 
     setBusy(true)
     setMessage('')
+    setCandidates([])
     const { error } = await supabase.from('compras_ml_notas').insert({
       compra_id: selected.id,
       numero_nf: numero.trim(),
@@ -92,6 +108,23 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
       setMessage(`Não foi possível lançar a NF: ${error.message}`)
     } else {
       await loadNotas(selected.id)
+      const { data: candidateData, error: candidateError } = await supabase.rpc('buscar_candidatos_cartao_nf', { p_compra_id: selected.id, p_data_nf: data })
+      if (candidateError) {
+        setMessage('NF lançada, mas não foi possível consultar os candidatos de cartão: ' + candidateError.message)
+      } else {
+        const found = (candidateData ?? []) as Candidate[]
+        setCandidates(found)
+        const exact = found.filter(x => x.exato)
+        if (exact.length === 1) {
+          const { error: linkError } = await supabase.rpc('vincular_transacao_compra', { p_compra_id: selected.id, p_transacao_id: exact[0].id })
+          if (linkError) setMessage('NF lançada, mas o vínculo automático do cartão falhou: ' + linkError.message)
+          else { setCandidates([]); setMessage('NF lançada e cartão conciliado automaticamente.') }
+        } else if (found.length) {
+          setMessage(exact.length > 1 ? 'NF lançada. Há mais de uma transação exata; selecione manualmente.' : 'NF lançada. Selecione uma transação de cartão para vincular ou deixe pendente.')
+        } else {
+          setMessage('NF lançada. Nenhuma transação de cartão compatível foi encontrada na janela de 10 dias; o vínculo ficou pendente.')
+        }
+      }
       setNumero('')
       setSerie('')
       setData('')
@@ -132,6 +165,28 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
     </div>}
 
     {message && <div className={message.startsWith('Não') || message.startsWith('Informe') ? 'error-box' : 'notice'}>{message}</div>}
+
+    {candidates.length > 0 && <div className="notice" style={{ marginTop: 12 }}>
+      <b>Transações de cartão candidatas</b>
+      <span className="tiny"> — até 10 dias antes da emissão da NF, inclusive a data da NF.</span>
+      <div className="table-wrap" style={{ marginTop: 8 }}>
+        <table className="data-table"><thead><tr><th>Seleção</th><th>Data</th><th>Descrição</th><th>Cartão</th><th>Valor</th><th>Diferença</th><th>Distância</th><th></th></tr></thead>
+        <tbody>{candidates.map(c => <tr key={c.id}>
+          <td>{c.exato ? <b>EXATO</b> : 'Candidato'}</td><td>{dateOnly(c.data).split('-').reverse().join('/')}</td><td>{c.descricao ?? '—'}</td>
+          <td>•••• {c.ultimos_digitos_cartao ?? '—'}</td><td>{brl(Number(c.valor_pago_cartao ?? c.valor))}</td><td>{brl(Number(c.diferenca_valor))}</td><td>{c.diferenca_dias} dia(s)</td>
+          <td><button className="mini" disabled={candidateBusy} onClick={async () => {
+            setCandidateBusy(true)
+            const { error } = await supabase.rpc('vincular_transacao_compra', { p_compra_id: selected!.id, p_transacao_id: c.id })
+            if (error) setMessage('Não foi possível vincular o cartão: ' + error.message)
+            else { setMessage('Transação de cartão vinculada à compra. A conferência foi recalculada.'); setCandidates([]) }
+            setCandidateBusy(false)
+          }}>Vincular</button></td>
+        </tr>)}</tbody></table>
+      </div>
+      <div className="actions" style={{ marginTop: 8 }}>
+        <button disabled={candidateBusy} onClick={() => { setCandidates([]); setMessage('NF lançada sem vínculo de cartão. A pendência poderá ser tratada posteriormente.') }}>Deixar pendente</button>
+      </div>
+    </div>}
 
     <div className="actions">
       <button className="primary" onClick={save} disabled={busy || !selected}>{busy ? 'Lançando...' : 'Lançar NF'}</button>
