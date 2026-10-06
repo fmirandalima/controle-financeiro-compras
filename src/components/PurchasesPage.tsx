@@ -54,6 +54,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
   const [selected, setSelected] = useState<Compra | null>(null)
   const [form, setForm] = useState({ nro_requisicao: '', data_compra: '', ml_order_id: '', valor: '', nro_oc: '', ultimos_digitos_cartao: '', observacao: '' })
   const [lancamentoEmpresa, setLancamentoEmpresa] = useState('')
+  const [cartaoMarcado, setCartaoMarcado] = useState(true)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<Array<Record<string, string>>>([])
   const [importEmpresa, setImportEmpresa] = useState('')
@@ -98,6 +99,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
     setSelected(null)
     setForm({ nro_requisicao: '', data_compra: '', ml_order_id: '', valor: '', nro_oc: '', ultimos_digitos_cartao: '', observacao: '' })
     setLancamentoEmpresa('')
+    setCartaoMarcado(true)
     setMessage('')
     setMode('lancamento')
   }
@@ -105,6 +107,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
   function edit(row: Compra) {
     setSelected(row)
     setLancamentoEmpresa(String(row.empresa_id))
+    setCartaoMarcado(Boolean(row.cartao))
     setForm({
       nro_requisicao: String(row.nro_requisicao ?? ''),
       data_compra: toDateInput(row.data_compra),
@@ -135,14 +138,15 @@ export function PurchasesPage({ profile, empresas }: Props) {
     const rpcName = selected ? 'atualizar_lancamento_compra' : 'criar_lancamento_compra'
     const rpcArgs = selected
       ? {
-          p_id: selected.id, p_nro_requisicao: req, p_data_compra: form.data_compra,
+          p_id: selected.id, p_empresa_id: lancamentoEmpresa, p_nro_requisicao: req, p_data_compra: form.data_compra,
           p_ml_order_id: form.ml_order_id.trim() || null, p_valor_operacao_cartao: valor, p_nro_oc: oc,
-          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null,
+          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: Boolean(selected.status_erp),
+          p_cartao: cartaoMarcado, p_status_entrega: selected.status_entrega || 'PENDENTE', p_oc_cancelada: Boolean(selected.oc_cancelada), p_cidade_uf_destino: selected.cidade_uf_destino || null,
         }
       : {
           p_empresa_id: lancamentoEmpresa, p_nro_requisicao: req, p_data_compra: form.data_compra,
           p_ml_order_id: form.ml_order_id.trim() || null, p_valor_operacao_cartao: valor, p_nro_oc: oc,
-          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: false,
+          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: false, p_cartao: cartaoMarcado, p_status_entrega: 'PENDENTE', p_oc_cancelada: false, p_cidade_uf_destino: null,
         }
     const { data, error } = await supabase.rpc(rpcName, rpcArgs)
     if (error) setMessage(`Não foi possível salvar: ${error.message}`)
@@ -169,7 +173,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
       const cartao = get('final_cartao','final cartão','ultimos_digitos_cartao','últimos dígitos do cartão').replace(/\D/g,'').slice(0,4)
       const ocRaw = get('nro oc','nº oc','oc','nro_ordem_compra'); const oc = ocRaw ? Number(ocRaw) : null
       if (!Number.isInteger(req) || req < 0 || req > 9999999 || !data || !order || !Number.isFinite(valor) || valor < 0) { errors++; continue }
-      const { error } = await supabase.rpc('criar_lancamento_compra', { p_empresa_id: importEmpresa, p_nro_requisicao: req, p_data_compra: data, p_ml_order_id: order, p_valor_operacao_cartao: valor, p_nro_oc: Number.isInteger(oc) ? oc : null, p_ultimos_digitos_cartao: cartao || null, p_observacao: null, p_status_erp: false })
+      const { error } = await supabase.rpc('criar_lancamento_compra', { p_empresa_id: importEmpresa, p_nro_requisicao: req, p_data_compra: data, p_ml_order_id: order, p_valor_operacao_cartao: valor, p_nro_oc: Number.isInteger(oc) ? oc : null, p_ultimos_digitos_cartao: cartao || null, p_observacao: null, p_status_erp: false, p_cartao: true, p_status_entrega: 'PENDENTE', p_oc_cancelada: false, p_cidade_uf_destino: null })
       if (error) errors++; else processed++
     }
     const empresaNome = empresas.find(e => String(e.id) === importEmpresa)?.nome ?? 'empresa selecionada'
