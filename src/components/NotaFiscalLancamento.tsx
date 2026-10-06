@@ -108,21 +108,22 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
       setMessage(`Não foi possível lançar a NF: ${error.message}`)
     } else {
       await loadNotas(selected.id)
+      let resultMessage = 'NF lançada. Nenhuma transação de cartão compatível foi encontrada na janela de 10 dias; o vínculo ficou pendente.'
       const { data: candidateData, error: candidateError } = await supabase.rpc('buscar_candidatos_cartao_nf', { p_compra_id: selected.id, p_data_nf: data })
       if (candidateError) {
-        setMessage('NF lançada, mas não foi possível consultar os candidatos de cartão: ' + candidateError.message)
+        resultMessage = 'NF lançada, mas não foi possível consultar os candidatos de cartão: ' + candidateError.message
       } else {
         const found = (candidateData ?? []) as Candidate[]
         setCandidates(found)
         const exact = found.filter(x => x.exato)
         if (exact.length === 1) {
           const { error: linkError } = await supabase.rpc('vincular_transacao_compra', { p_compra_id: selected.id, p_transacao_id: exact[0].id })
-          if (linkError) setMessage('NF lançada, mas o vínculo automático do cartão falhou: ' + linkError.message)
-          else { setCandidates([]); setMessage('NF lançada e cartão conciliado automaticamente.') }
+          if (linkError) resultMessage = 'NF lançada, mas o vínculo automático do cartão falhou: ' + linkError.message
+          else { setCandidates([]); resultMessage = 'NF lançada e cartão conciliado automaticamente.' }
         } else if (found.length) {
-          setMessage(exact.length > 1 ? 'NF lançada. Há mais de uma transação exata; selecione manualmente.' : 'NF lançada. Selecione uma transação de cartão para vincular ou deixe pendente.')
+          resultMessage = exact.length > 1 ? 'NF lançada. Há mais de uma transação exata; selecione manualmente.' : 'NF lançada. Selecione uma transação de cartão para vincular ou deixe pendente.'
         } else {
-          setMessage('NF lançada. Nenhuma transação de cartão compatível foi encontrada na janela de 10 dias; o vínculo ficou pendente.')
+          resultMessage = 'NF lançada. Nenhuma transação de cartão compatível foi encontrada na janela de 10 dias; o vínculo ficou pendente.'
         }
       }
       setNumero('')
@@ -130,7 +131,7 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
       setData('')
       setValor('')
       setObservacao('')
-      setMessage('NF lançada. A data e o valor da NF não são comparados individualmente com o cartão.')
+      setMessage(resultMessage)
     }
     setBusy(false)
   }
