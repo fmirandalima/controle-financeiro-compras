@@ -57,6 +57,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<Array<Record<string, string>>>([])
   const [importEmpresa, setImportEmpresa] = useState('')
+  const [mlStatus, setMlStatus] = useState<Record<string, { status: string; empresa_id: string | null; mensagem: string | null; ultima_sincronizacao: string | null }>>({})
   const canEdit = profile.role === 'FATURAMENTO' || profile.role === 'COMPRAS'
   const canEditErp = profile.role === 'FATURAMENTO'
 
@@ -90,6 +91,20 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   useEffect(() => { if (!empresa && empresas[0]) setEmpresa(String(empresas[0].id)) }, [empresas])
   useEffect(() => { if (mode === 'consulta') load() }, [empresa, status])
+  useEffect(() => { void loadMercadoLivreStatus() }, [])
+
+  async function loadMercadoLivreStatus() {
+    const { data, error } = await supabase.from('integracoes_empresa').select('codigo_empresa,status,empresa_id,mensagem,ultima_sincronizacao').eq('integracao','MERCADO_LIVRE')
+    if (error) { setMessage('Status do Mercado Livre indisponível: execute a migration 009 no banco.'); return }
+    const next: typeof mlStatus = {}; for (const row of data ?? []) next[row.codigo_empresa] = row; setMlStatus(next)
+  }
+
+  function importMercadoLivre(codigo: string) {
+    const s = mlStatus[codigo]
+    if (!s?.empresa_id) { setMessage('Mercado Livre ' + codigo + ': empresa de destino não vinculada. Nenhuma compra foi importada.'); return }
+    if (s.status !== 'CONECTADO') { setMessage('Mercado Livre ' + codigo + ': status ' + s.status + '. Nenhuma compra foi importada.'); return }
+    setMessage('Mercado Livre ' + codigo + ': conectado. O executor seguro da API ainda não está publicado; nenhum lançamento foi criado.')
+  }
 
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const visible = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize])
@@ -195,7 +210,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   return <section className="panel purchases-panel">
     <div className="panel-head">
-      <div><h2>Compras — Mercado Livre</h2><p className="muted">Consulta e lançamento de compras. Integração automática está em stand by.</p></div>
+      <div><h2>Compras — Mercado Livre</h2><p className="muted">Consulta, lançamento e importação por empresa.</p></div>
       <div className="actions"><button className={mode === 'consulta' ? 'primary' : ''} onClick={() => setMode('consulta')}>Consulta</button>{canEdit && <button className={mode === 'lancamento' ? 'primary' : ''} onClick={newLaunch}>Novo lançamento</button>}</div>
     </div>
 
@@ -214,10 +229,25 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
       {canEdit && <NotaFiscalLancamento rows={rows} canEdit={canEdit} />}
 
-      {canEdit && <div className="import-box"><h3>Importação de dados do Mercado Livre</h3><p className="muted">Use arquivos <b>CSV, TXT ou Excel</b> para carga manual. Os dados são pré-visualizados antes do processamento.</p>
+      {canEdit && <div className="import-box">
+        <h3>Importação automática do Mercado Livre</h3>
+        <p className="muted">A empresa de destino é definida pelo próprio botão. Conta Simples não participa deste fluxo.</p>
+        <div className="actions">
+          <button className="primary" onClick={() => importMercadoLivre('104')}>Importar compras Mercado Livre — Empresa 104</button>
+          <button onClick={() => importMercadoLivre('001')}>Importar compras Mercado Livre — Empresas Matriz e Filiais 001</button>
+          <button onClick={loadMercadoLivreStatus}>Atualizar status ML</button>
+        </div>
+        <div className="form-grid">
+          {['104','001'].map(codigo => { const s = mlStatus[codigo]; const e = empresas.find(x => x.codigo_empresa === codigo); return <article className="panel" key={codigo}>
+            <h3>Mercado Livre — {codigo}</h3><p><strong>Empresa destino:</strong> {e?.nome ?? 'não vinculada'}</p><p><strong>Status:</strong> {s?.status ?? 'NÃO CONFIGURADO'}</p>
+            {s?.ultima_sincronizacao && <p className="tiny">Última sincronização: {new Date(s.ultima_sincronizacao).toLocaleString('pt-BR')}</p>}
+            {s?.mensagem && <p className="tiny">{s.mensagem}</p>}
+          </article> })}
+        </div>
+        <h3>Importação manual de dados do Mercado Livre</h3><p className="muted">Use arquivos <b>CSV, TXT ou Excel</b> para carga manual. Os dados são pré-visualizados antes do processamento.</p>
         <div className="form-grid"><label>Qual empresa corresponde aos arquivos que você está importando? *<select value={importEmpresa} onChange={e => setImportEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label></div>
         {importEmpresa && <div className="notice">Empresa da importação: <b>{empresas.find(e => String(e.id) === importEmpresa)?.nome}</b></div>}
-        <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><button disabled className="standby-button" title="Integração automática temporariamente desativada">Integrador com Mercado Livre: importar automaticamente — Em stand by</button></div>
+        <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><span className="tiny">A importação automática usa os botões por empresa acima.</span></div>
         {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s) lida(s).</div>}
         {!!importRows.length && <><div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead><tbody>{importRows.slice(0,8).map((r,i)=><tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k=><td key={k}>{r[k]}</td>)}</tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={importManual} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button><button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button></div></>}
       </div>}
