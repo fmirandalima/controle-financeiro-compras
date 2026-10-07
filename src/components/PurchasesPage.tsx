@@ -30,6 +30,46 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   notas_count: number
   itens_count: number
   numeros_nf: string | null
+  resumo_conferencia?: string | null
+  observacao_divergencia: string | null
+  quantidade_notas?: number
+  quantidade_itens?: number
+  ml_pack_id?: string | null
+  ml_paid_amount?: number | null
+  ml_status?: string | null
+  ml_status_detail?: string | null
+  ml_buying_mode?: string | null
+  ml_currency_id?: string | null
+  ml_buyer_id?: string | null
+  ml_seller_id?: string | null
+  ml_shipping_id?: string | null
+  ml_tags?: string | null
+  ml_date_closed?: string | null
+  ml_last_updated?: string | null
+  ml_resumo_financeiro?: string | null
+  ml_coupon_amount?: number | null
+  ml_discount_amount?: number | null
+  ml_coupon_id?: string | null
+}
+
+type Nota = {
+  id: string
+  numero_nf: string | null
+  serie_nf: string | null
+  data_emissao: string | null
+  valor_total: number
+  status_nf?: string
+}
+
+type Item = {
+  id: string
+  nota_fiscal_id: string
+  numero_item?: number | null
+  descricao: string
+  quantidade: number
+  unidade?: string | null
+  valor_unitario: number
+  valor_produtos: number
 }
 
 type Props = { profile: Perfil; empresas: Empresa[] }
@@ -57,6 +97,10 @@ export function PurchasesPage({ profile, empresas }: Props) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<Compra | null>(null)
+  const [viewing, setViewing] = useState<Compra | null>(null)
+  const [viewingNotas, setViewingNotas] = useState<Nota[]>([])
+  const [viewingItens, setViewingItens] = useState<Item[]>([])
+  const [viewBusy, setViewBusy] = useState(false)
   const [form, setForm] = useState({ nro_requisicao: '', data_compra: '', ml_order_id: '', valor: '', nro_oc: '', ultimos_digitos_cartao: '', observacao: '' })
   const [lancamentoEmpresa, setLancamentoEmpresa] = useState('')
   const [cartaoMarcado, setCartaoMarcado] = useState(true)
@@ -134,6 +178,41 @@ export function PurchasesPage({ profile, empresas }: Props) {
       observacao: row.observacao ?? '',
     })
     setMode('lancamento')
+  }
+
+
+  async function openView(row: Compra) {
+    setViewing(row)
+    setViewingNotas([])
+    setViewingItens([])
+    setViewBusy(true)
+    const notesResult = await supabase
+      .from('compras_ml_notas')
+      .select('id,numero_nf,serie_nf,data_emissao,valor_total,status_nf')
+      .eq('compra_id', row.id)
+      .order('data_emissao', { ascending: true })
+
+    if (notesResult.error) {
+      setMessage('Não foi possível carregar os documentos fiscais: ' + notesResult.error.message)
+      setViewBusy(false)
+      return
+    }
+
+    const notes = (notesResult.data ?? []) as Nota[]
+    setViewingNotas(notes)
+
+    if (notes.length) {
+      const itemsResult = await supabase
+        .from('compras_ml_nf_itens')
+        .select('id,nota_fiscal_id,numero_item,descricao,quantidade,unidade,valor_unitario,valor_produtos')
+        .in('nota_fiscal_id', notes.map(n => n.id))
+      if (itemsResult.error) {
+        setMessage('Não foi possível carregar os itens das NF(s): ' + itemsResult.error.message)
+      } else {
+        setViewingItens((itemsResult.data ?? []) as Item[])
+      }
+    }
+    setViewBusy(false)
   }
 
   async function save() {
@@ -288,8 +367,24 @@ export function PurchasesPage({ profile, empresas }: Props) {
         <button onClick={load} disabled={busy}>{busy ? 'Consultando...' : 'Atualizar'}</button>
       </div>
       {message && <div className="notice">{message}</div>}
-      <div className="table-wrap"><table className="data-table purchase-table"><thead><tr><th>Empresa</th><th>Requisição</th><th>OC</th><th>Data compra</th><th>Pedido Mercado Livre</th><th>Cartão</th><th>NF total</th><th>Valor cartão</th><th>Entrega</th><th>NF Lançada?</th><th>Observação</th><th>Status</th><th></th></tr></thead>
-      <tbody>{visible.length ? visible.map(r => <tr key={r.id}><td><b>{r.empresa_apelido ?? '—'}</b></td><td><b>{r.nro_requisicao}</b></td><td>{r.nro_oc ?? <span className="warn">Não informado</span>}</td><td>{toDateInput(r.data_compra).split('-').reverse().join('/')}</td><td>{r.ml_order_id ?? '—'}</td><td>•••• {r.ultimos_digitos_cartao ?? '—'}</td><td>{brl(r.valor_nf_total)}</td><td>{brl(r.valor_operacao_cartao)}</td><td>{r.mercado_entregue === true ? 'Sim' : r.mercado_entregue === false ? 'Não' : '—'}</td><td>{canEditErp ? <input type="checkbox" checked={!!r.status_erp} onChange={async e => { const checked = e.target.checked; const { error } = await supabase.rpc('atualizar_status_erp_compra', { p_id: r.id, p_status_erp: checked }); if (error) setMessage(`Não foi possível alterar NF Lançada?: ${error.message}`); else setRows(prev => prev.map(x => x.id === r.id ? { ...x, status_erp: checked } : x)) }} /> : <input type="checkbox" checked={!!r.status_erp} readOnly />} </td><td>{r.observacao ?? '—'}</td><td><span className="tag">{r.status_conferencia}</span></td><td>{canEdit && <button className="mini" onClick={() => edit(r)}>Editar</button>}</td></tr>) : <tr><td colSpan={14}>Nenhum lançamento encontrado.</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table className="data-table purchase-table"><thead><tr><th>Empresa</th><th>Requisição</th><th>OC</th><th>Data compra</th><th>Pedido Mercado Livre</th><th>Cartão</th><th>NF(s)</th><th>NF total</th><th>Valor cartão</th><th>Conferência</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>{visible.length ? visible.map(r => {
+        const diff = Number(r.valor_operacao_cartao || 0) - Number(r.valor_nf_total || 0)
+        return <tr key={r.id}>
+          <td><b>{r.empresa_apelido ?? '—'}</b></td>
+          <td><b>{r.nro_requisicao}</b></td>
+          <td>{r.nro_oc ?? <span className="warn">Não informado</span>}</td>
+          <td>{toDateInput(r.data_compra).split('-').reverse().join('/')}</td>
+          <td>{r.ml_order_id ?? '—'}</td>
+          <td>{r.cartao ? '✓ Sim' : 'Não'}</td>
+          <td>{r.quantidade_notas ?? 0}</td>
+          <td>{brl(r.valor_nf_total)}</td>
+          <td>{brl(r.valor_operacao_cartao)}</td>
+          <td>{diff > 0.01 ? <span className="warn">Faltam {brl(diff)}</span> : diff < -0.01 ? <span className="warn">Excede {brl(Math.abs(diff))}</span> : r.valor_nf_total > 0 ? 'Conciliado' : 'Aguardando NF'}</td>
+          <td><span className="tag">{r.status_conferencia}</span></td>
+          <td><div className="actions"><button className="mini" onClick={() => void openView(r)}>Visualizar</button>{canEdit && <button className="mini" onClick={() => edit(r)}>Editar</button>}</div></td>
+        </tr>
+      }) : <tr><td colSpan={12}>Nenhum lançamento encontrado.</td></tr>}</tbody></table></div>
       <div className="pagination"><button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>Página {page} de {pages} · {rows.length} registro(s)</span><button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Próxima</button></div>
 
       {canEdit && <NotaFiscalLancamento rows={rows} canEdit={canEdit} />}
@@ -349,21 +444,5 @@ export function PurchasesPage({ profile, empresas }: Props) {
         <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }} disabled={!canEdit}>Editar este lançamento</button></div>
       </div>
     </div>}
-  </section>
-}
-        <label>Empresa do lançamento *<select value={lancamentoEmpresa} disabled={!!selected} onChange={e => setLancamentoEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label>
-        <label>Nº Requisição *<input inputMode="numeric" maxLength={7} value={form.nro_requisicao} onChange={e => setForm(f => ({ ...f, nro_requisicao: e.target.value.replace(/\D/g,'').slice(0,7) }))} placeholder="Até 7 dígitos" /></label>
-        <label>Data da compra *<input type="date" value={form.data_compra} onChange={e => setForm(f => ({ ...f, data_compra: e.target.value }))} /></label>
-        <label>Nº pedido/compra Mercado Livre<input value={form.ml_order_id} onChange={e => setForm(f => ({ ...f, ml_order_id: e.target.value }))} placeholder="Pedido Mercado Livre" /></label>
-        <label>Valor pago no cartão *<input inputMode="decimal" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" /></label>
-        <label>Nº do cartão<input inputMode="numeric" maxLength={4} value={form.ultimos_digitos_cartao} onChange={e => setForm(f => ({ ...f, ultimos_digitos_cartao: e.target.value.replace(/\D/g,'').slice(0,4) }))} placeholder="Últimos 4 dígitos" /></label>
-        <label>Observação<input maxLength={10} value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value.slice(0,10) }))} placeholder="Até 10 caracteres" /></label>
-        <label>Nº Ordem de Compra (OC)<input inputMode="numeric" maxLength={7} value={form.nro_oc} onChange={e => setForm(f => ({ ...f, nro_oc: e.target.value.replace(/\D/g,'').slice(0,7) }))} placeholder="Opcional" /></label>
-      </div>
-      {message && <div className={message.startsWith('Não') || message.startsWith('Nº') || message.startsWith('Informe') ? 'error-box' : 'notice'}>{message}</div>}
-      <div className="actions"><button className="primary" onClick={save} disabled={busy || !lancamentoEmpresa}>{busy ? 'Salvando...' : 'Salvar lançamento'}</button><button onClick={() => setMode('consulta')}>Cancelar</button></div>
-      <div className="notice"><b>Regra da OC:</b> se o Nº OC ficar em branco, o lançamento será salvo normalmente. O Nº OC poderá ser preenchido posteriormente pelo comprador ou pelo FATURAMENTO.</div>
-      {selected && <p className="tiny">Editando lançamento {selected.nro_requisicao} · ID {selected.id}</p>}
-    </>}
   </section>
 }
