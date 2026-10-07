@@ -58,6 +58,7 @@ type Nota = {
   data_emissao: string | null
   valor_total: number
   status_nf?: string
+  observacao: string | null
 }
 
 type Item = {
@@ -187,7 +188,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
     setViewBusy(true)
     const notesResult = await supabase
       .from('compras_ml_notas')
-      .select('id,numero_nf,serie_nf,data_emissao,valor_total,status_nf')
+      .select('id,numero_nf,serie_nf,data_emissao,valor_total,status_nf,observacao')
       .eq('compra_id', row.id)
       .order('data_emissao', { ascending: true })
 
@@ -549,7 +550,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
           <p className="muted">Cada NF é um lançamento fiscal separado. O cartão continua sendo um único pagamento; o acumulado mostra quanto já foi lançado contra o cartão.</p>
           {viewBusy ? <div className="notice">Carregando documentos fiscais...</div> : viewingNotas.length === 0 ? <div className="notice">Nenhuma NF vinculada a esta compra. Quando a NF estiver disponível, lance-a individualmente e ela aparecerá aqui.</div> : <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>#</th><th>NF</th><th>Série</th><th>Emissão</th><th>Valor NF</th><th>Acumulado</th><th>Saldo cartão</th><th>Status</th></tr></thead>
+              <thead><tr><th>#</th><th>NF</th><th>Série</th><th>Emissão</th><th>Valor NF</th><th>Acumulado</th><th>Saldo cartão</th><th>Status</th><th>Observação</th></tr></thead>
               <tbody>{(() => {
                 let accumulated = 0
                 return viewingNotas.map((n, index) => {
@@ -559,7 +560,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
                     <td>{index + 1}</td><td><b>{n.numero_nf ?? '—'}</b></td><td>{n.serie_nf ?? '—'}</td>
                     <td>{n.data_emissao ? n.data_emissao.slice(0,10).split('-').reverse().join('/') : '—'}</td>
                     <td>{brl(n.valor_total)}</td><td>{brl(accumulated)}</td><td>{brl(Math.max(0, remaining))}</td>
-                    <td><span className="tag">{n.status_nf ?? 'LANÇADA'}</span></td>
+                    <td><span className="tag">{n.status_nf ?? 'LANÇADA'}</span></td><td>{n.observacao ?? '—'}</td>
                   </tr>
                 })
               })()}</tbody>
