@@ -257,7 +257,14 @@ export function PurchasesPage({ profile, empresas }: Props) {
                   })
                   if (error) throw new Error(error.message || 'Não foi possível executar a sincronização.')
                   if (!data?.ok) throw new Error(data?.error || 'O Mercado Livre não retornou uma confirmação de sincronização.')
-                  setMlMessage('Sincronização concluída. Pedidos encontrados: ' + Number(data.found ?? 0) + '. Novos: ' + Number(data.inserted ?? 0) + '. Atualizados: ' + Number(data.updated ?? 0) + (Array.isArray(data.errors) && data.errors.length ? '. Erros: ' + data.errors.length + '.' : '.'))
+                  setMlMessage(
+                    'Sincronização concluída. Pedidos encontrados: ' + Number(data.found ?? 0) +
+                    '. Novos: ' + Number(data.inserted ?? 0) +
+                    '. Atualizados: ' + Number(data.updated ?? 0) +
+                    (Array.isArray(data.errors) && data.errors.length
+                      ? '. Erros: ' + data.errors.length + '. Motivos: ' + data.errors.map((e: { order_id?: string; error?: string }) => 'Pedido ' + (e.order_id ?? '—') + ': ' + (e.error ?? 'erro não informado')).join(' | ')
+                      : '. Nenhum erro.') 
+                  )
                   await load()
                   await loadMlStatus()
                 } catch (e) {
