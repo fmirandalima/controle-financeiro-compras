@@ -9,6 +9,7 @@ import { CartaoPage } from '../components/CartaoPage'
 import { PermissionsAdminPage } from '../components/PermissionsAdminPage'
 import { useScreenPermissions } from '../lib/permissions'
 import { brl } from '../lib/format'
+import { brl } from '../lib/format'
 
 type Tab = 'compras' | 'cartao' | 'consulta' | 'importacao' | 'auditoria' | 'administracao'
 
