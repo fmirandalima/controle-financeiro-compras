@@ -20,6 +20,7 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   mercado_entregue: boolean | null
   palavra_chave: string | null
   status_conferencia: string
+  observacao_divergencia: string | null
   status_erp: boolean
   cartao: boolean
   status_entrega: string | null
@@ -149,7 +150,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
     if (!Number.isFinite(valor) || valor < 0) { setMessage('Informe um valor válido para o cartão.'); setBusy(false); return }
     if (oc !== null && (!Number.isInteger(oc) || oc < 0 || oc > 9999999)) { setMessage('Nº OC deve ser um número inteiro de até 7 dígitos.'); setBusy(false); return }
     if (cartao && !/^\d{1,4}$/.test(cartao)) { setMessage('Nº do cartão deve conter até 4 dígitos.'); setBusy(false); return }
-    if (observacao.length > 10) { setMessage('Observação deve ter no máximo 10 caracteres.'); setBusy(false); return }
+    if (observacao.length > 120) { setMessage('Observação deve ter no máximo 120 caracteres.'); setBusy(false); return }
     const rpcName = selected ? 'atualizar_lancamento_compra' : 'criar_lancamento_compra'
     const rpcArgs = selected
       ? {
@@ -300,8 +301,56 @@ export function PurchasesPage({ profile, empresas }: Props) {
         {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s) lida(s).</div>}
         {!!importRows.length && <><div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead><tbody>{importRows.slice(0,8).map((r,i)=><tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k=><td key={k}>{r[k]}</td>)}</tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={importManual} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button><button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button></div></>}
       </div>}
-    </> : <>
-      <div className="form-grid">
+    </>}
+
+    {viewing && <div className="modal-backdrop" role="presentation" onClick={() => setViewing(null)}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="compra-detalhe-title" onClick={e => e.stopPropagation()}>
+        <div className="panel-head">
+          <div><h2 id="compra-detalhe-title">Visualização do lançamento</h2><p className="muted">Detalhes do lançamento, conciliação NF × cartão e retorno do Mercado Livre.</p></div>
+          <button onClick={() => setViewing(null)}>Fechar</button>
+        </div>
+        <div className="detail-grid">
+          <div><b>Empresa</b><span>{viewing.empresa_apelido ?? '—'}</span></div>
+          <div><b>Nº Requisição</b><span>{viewing.nro_requisicao}</span></div>
+          <div><b>Nº OC</b><span>{viewing.nro_oc ?? '—'}</span></div>
+          <div><b>Pedido Mercado Livre</b><span>{viewing.ml_order_id ?? '—'}</span></div>
+          <div><b>Pack</b><span>{viewing.ml_pack_id ?? '—'}</span></div>
+          <div><b>Data da compra</b><span>{toDateInput(viewing.data_compra).split('-').reverse().join('/')}</span></div>
+          <div><b>Valor pago no cartão</b><span>{brl(viewing.valor_operacao_cartao)}</span></div>
+          <div><b>Valor pago informado pelo ML</b><span>{brl(viewing.ml_paid_amount)}</span></div>
+          <div><b>Soma das notas</b><span>{brl(viewing.valor_nf_total)}</span></div>
+          <div><b>Diferença cartão × notas</b><span>{brl(Math.abs(viewing.valor_nf_total - viewing.valor_operacao_cartao))}</span></div>
+          <div><b>Quantidade de NF</b><span>{viewing.notas_count}</span></div>
+          <div><b>Quantidade de itens</b><span>{viewing.itens_count}</span></div>
+          <div><b>Números das NF</b><span>{viewing.numeros_nf ?? '—'}</span></div>
+          <div><b>Frete ML</b><span>{brl(viewing.valor_frete)}</span></div>
+          <div><b>Desconto/Cupom</b><span>{brl(viewing.valor_desconto)}</span></div>
+          <div><b>Estorno</b><span>{viewing.data_estorno ? new Date(viewing.data_estorno).toLocaleString('pt-BR') : 'Nenhum informado'}</span></div>
+          <div><b>Status da conferência</b><span className="tag">{viewing.status_conferencia}</span></div>
+          <div style={{gridColumn:'1 / -1'}}><b>Conferência</b><span>{viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Sem divergência informada.'}</span></div>
+          <div style={{gridColumn:'1 / -1'}}><b>Observação</b><span>{viewing.observacao ?? '—'}</span></div>
+        </div>
+        <div className="import-box">
+          <h3>Retorno do Mercado Livre</h3>
+          <div className="detail-grid">
+            <div><b>Status ML</b><span>{viewing.ml_status ?? '—'}</span></div>
+            <div><b>Detalhe do status</b><span>{viewing.ml_status_detail ?? '—'}</span></div>
+            <div><b>Modo de compra</b><span>{viewing.ml_buying_mode ?? '—'}</span></div>
+            <div><b>Moeda</b><span>{viewing.ml_currency_id ?? '—'}</span></div>
+            <div><b>Comprador ID</b><span>{viewing.ml_buyer_id ?? '—'}</span></div>
+            <div><b>Vendedor ID</b><span>{viewing.ml_seller_id ?? '—'}</span></div>
+            <div><b>Envio ID</b><span>{viewing.ml_shipping_id ?? '—'}</span></div>
+            <div><b>Tags</b><span>{viewing.ml_tags ?? '—'}</span></div>
+            <div><b>Data fechamento ML</b><span>{viewing.ml_date_closed ? new Date(viewing.ml_date_closed).toLocaleString('pt-BR') : '—'}</span></div>
+            <div><b>Última atualização ML</b><span>{viewing.ml_last_updated ? new Date(viewing.ml_last_updated).toLocaleString('pt-BR') : '—'}</span></div>
+            <div style={{gridColumn:'1 / -1'}}><b>Resumo financeiro ML</b><span>{viewing.ml_resumo_financeiro ?? 'Nenhum ajuste financeiro retornado.'}</span></div>
+          </div>
+        </div>
+        <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }} disabled={!canEdit}>Editar este lançamento</button></div>
+      </div>
+    </div>}
+  </section>
+}
         <label>Empresa do lançamento *<select value={lancamentoEmpresa} disabled={!!selected} onChange={e => setLancamentoEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label>
         <label>Nº Requisição *<input inputMode="numeric" maxLength={7} value={form.nro_requisicao} onChange={e => setForm(f => ({ ...f, nro_requisicao: e.target.value.replace(/\D/g,'').slice(0,7) }))} placeholder="Até 7 dígitos" /></label>
         <label>Data da compra *<input type="date" value={form.data_compra} onChange={e => setForm(f => ({ ...f, data_compra: e.target.value }))} /></label>
