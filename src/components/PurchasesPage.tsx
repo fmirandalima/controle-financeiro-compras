@@ -17,6 +17,8 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   valor_nf_total: number
   data_cartao: string | null
   data_estorno: string | null
+  valor_frete?: number
+  valor_desconto?: number
   mercado_entregue: boolean | null
   palavra_chave: string | null
   status_conferencia: string
@@ -30,7 +32,6 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   numeros_nf: string | null
   resumo_conferencia?: string | null
   quantidade_notas?: number
-  quantidade_itens?: number
   quantidade_itens?: number
   ml_pack_id?: string | null
   ml_paid_amount?: number | null
