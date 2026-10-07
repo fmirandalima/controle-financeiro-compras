@@ -18,6 +18,7 @@ type Nota = {
   serie_nf: string | null
   data_emissao: string | null
   valor_total: number
+  observacao: string | null
 }
 
 type Props = {
@@ -71,7 +72,7 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
     if (!id) { setNotas([]); return }
     const { data, error } = await supabase
       .from('compras_ml_notas')
-      .select('id,numero_nf,serie_nf,data_emissao,valor_total')
+      .select('id,numero_nf,serie_nf,data_emissao,valor_total,observacao')
       .eq('compra_id', id)
       .order('data_emissao', { ascending: true })
     if (error) setMessage(`Não foi possível consultar as NF(s): ${error.message}`)
@@ -107,6 +108,7 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
     if (error) {
       setMessage(`Não foi possível lançar a NF: ${error.message}`)
     } else {
+      await supabase.rpc('recalcular_conferencia_compra', { p_compra_id: selected.id })
       await loadNotas(selected.id)
       let resultMessage = 'NF lançada. Nenhuma transação de cartão compatível foi encontrada na janela de 10 dias; o vínculo ficou pendente.'
       const { data: candidateData, error: candidateError } = await supabase.rpc('buscar_candidatos_cartao_nf', { p_compra_id: selected.id, p_data_nf: data })
@@ -194,8 +196,8 @@ export function NotaFiscalLancamento({ rows, canEdit }: Props) {
     </div>
 
     {selected && <div className="table-wrap" style={{ marginTop: 12 }}>
-      <table className="data-table"><thead><tr><th>NF</th><th>Série</th><th>Emissão</th><th>Valor</th></tr></thead>
-      <tbody>{notas.length ? notas.map(n => <tr key={n.id}><td>{n.numero_nf ?? '—'}</td><td>{n.serie_nf ?? '—'}</td><td>{dateOnly(n.data_emissao).split('-').reverse().join('/')}</td><td>{brl(Number(n.valor_total))}</td></tr>) : <tr><td colSpan={4}>Nenhuma NF vinculada a esta compra.</td></tr>}</tbody></table>
+      <table className="data-table"><thead><tr><th>NF</th><th>Série</th><th>Emissão</th><th>Valor</th><th>Observação financeira</th></tr></thead>
+      <tbody>{notas.length ? notas.map(n => <tr key={n.id}><td>{n.numero_nf ?? '—'}</td><td>{n.serie_nf ?? '—'}</td><td>{dateOnly(n.data_emissao).split('-').reverse().join('/')}</td><td>{brl(Number(n.valor_total))}</td><td>{n.observacao ?? '—'}</td></tr>) : <tr><td colSpan={5}>Nenhuma NF vinculada a esta compra.</td></tr>}</tbody></table>
     </div>}
   </div>
 }
