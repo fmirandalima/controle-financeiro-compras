@@ -96,6 +96,7 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand-mark">CF</div>
+        <h1>SIGCF 2.0</h1>
         <h1>Solicitação enviada</h1>
         <p className="muted">Sua solicitação de acesso como GESTOR foi registrada para análise.</p>
         <button className="primary" onClick={() => { setRequestSent(false); setSouGestor(false) }}>Voltar ao login</button>
@@ -107,6 +108,7 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand-mark">CF</div>
+        <h1>SIGCF 2.0</h1>
         <h1>Cadastro realizado</h1>
         <p className="muted">Usuário <b>{cadastroUsername}</b> cadastrado no setor <b>{setor}</b>.</p>
         <p className="muted">Se a confirmação de e-mail estiver ativada, verifique a caixa de entrada antes do primeiro acesso.</p>
@@ -119,8 +121,9 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     <main className="auth-shell">
       <section className="auth-card">
         <div className="brand-mark">CF</div>
-        <h1>Controle Financeiro</h1>
-        <p className="muted">Conta Simples × Sankhya</p>
+        <h1>SIGCF — Controle Financeiro</h1>
+        <p className="muted">Versão 2.0 · Compras · Requisições · Patrimônio · Auditoria</p>
+        <p className="tiny">Sistema integrado para controle financeiro, compras e patrimônio.</p>
 
         {!modoCadastro && (
           <label className="checkbox-line">
