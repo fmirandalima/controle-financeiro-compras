@@ -292,14 +292,20 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   return <section className="panel purchases-panel">
     <div className="panel-head">
-      <div><h2>Compras — Mercado Livre · Layout 2.0</h2><p className="muted">Consulta, visualização e edição dos lançamentos. O cartão permanece como um único pagamento e as NF(s) ficam fracionadas em DOCUMENTO FISCAL.</p></div>
-      <div className="actions"><button className={mode === 'consulta' ? 'primary' : ''} onClick={() => setMode('consulta')}>Consulta</button>{canEdit && <button className={mode === 'lancamento' ? 'primary' : ''} onClick={newLaunch}>Novo lançamento</button>}</div>
+      <div>
+        <h2>Compras — Mercado Livre · Layout 2.0</h2>
+        <p className="muted">Consulta, visualização e edição dos lançamentos. O cartão permanece como um único pagamento e as NF(s) ficam fracionadas em DOCUMENTO FISCAL.</p>
+      </div>
+      <div className="actions">
+        <button className={mode === 'consulta' ? 'primary' : ''} onClick={() => setMode('consulta')}>Consultar lançamentos</button>
+        {canEdit && <button className={mode === 'lancamento' ? 'primary' : ''} onClick={newLaunch}>Novo lançamento</button>}
+      </div>
     </div>
 
-    {mode === 'consulta' ? <>
+    {mode === 'consulta' && <>
       <div className="import-box">
         <h3>Integração Mercado Livre por empresa</h3>
-        <p className="muted">Conta Simples não participa deste fluxo. As ações abaixo são exclusivas da importação de compras do Mercado Livre.</p>
+        <p className="muted">A sincronização segura importa o pedido com Cartão marcado para conciliação e traz os retornos financeiros disponíveis no Mercado Livre.</p>
         {mlMessage && <div className="notice">{mlMessage}</div>}
         <div className="form-grid">
           {[
@@ -341,7 +347,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
                     '. Atualizados: ' + Number(data.updated ?? 0) +
                     (Array.isArray(data.errors) && data.errors.length
                       ? '. Erros: ' + data.errors.length + '. Motivos: ' + data.errors.map((e: { order_id?: string; error?: string }) => 'Pedido ' + (e.order_id ?? '—') + ': ' + (e.error ?? 'erro não informado')).join(' | ')
-                      : '. Nenhum erro.') 
+                      : '. Nenhum erro.')
                   )
                   await load()
                   await loadMlStatus()
@@ -354,47 +360,96 @@ export function PurchasesPage({ profile, empresas }: Props) {
             </article>
           })}
         </div>
-        <div className="actions"><button onClick={loadMlStatus}>Atualizar status ML</button></div>
+        <div className="actions"><button onClick={() => void loadMlStatus()}>Atualizar status ML</button></div>
       </div>
 
       <div className="filters purchase-filters">
-        <select value={empresa} onChange={e => setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
-        <select value={status} onChange={e => setStatus(e.target.value)}><option value="">Todos os status</option>{statuses.map(s => <option key={s}>{s}</option>)}</select>
-        <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} registros</option>)}</select>
-        <button onClick={load} disabled={busy}>{busy ? 'Consultando...' : 'Atualizar'}</button>
+        <select value={empresa} onChange={e => setEmpresa(e.target.value)}>
+          <option value="">Todas as empresas</option>
+          {empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}
+        </select>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') void load() }} />
+        <select value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="">Todos os status</option>
+          {statuses.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>
+          {PAGE_OPTIONS.map(n => <option key={n} value={n}>{n} registros</option>)}
+        </select>
+        <button onClick={() => void load()} disabled={busy}>{busy ? 'Consultando...' : 'Atualizar'}</button>
       </div>
+
       {message && <div className="notice">{message}</div>}
-      <div className="table-wrap"><table className="data-table purchase-table"><thead><tr><th>Empresa</th><th>Requisição</th><th>OC</th><th>Data compra</th><th>Pedido Mercado Livre</th><th>Cartão</th><th>NF(s)</th><th>NF total</th><th>Valor cartão</th><th>Conferência</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>{visible.length ? visible.map(r => {
-        const diff = Number(r.valor_operacao_cartao || 0) - Number(r.valor_nf_total || 0)
-        return <tr key={r.id}>
-          <td><b>{r.empresa_apelido ?? '—'}</b></td>
-          <td><b>{r.nro_requisicao}</b></td>
-          <td>{r.nro_oc ?? <span className="warn">Não informado</span>}</td>
-          <td>{toDateInput(r.data_compra).split('-').reverse().join('/')}</td>
-          <td>{r.ml_order_id ?? '—'}</td>
-          <td>{r.cartao ? '✓ Sim' : 'Não'}</td>
-          <td>{r.quantidade_notas ?? 0}</td>
-          <td>{brl(r.valor_nf_total)}</td>
-          <td>{brl(r.valor_operacao_cartao)}</td>
-          <td>{diff > 0.01 ? <span className="warn">Faltam {brl(diff)}</span> : diff < -0.01 ? <span className="warn">Excede {brl(Math.abs(diff))}</span> : r.valor_nf_total > 0 ? 'Conciliado' : 'Aguardando NF'}</td>
-          <td><span className="tag">{r.status_conferencia}</span></td>
-          <td><div className="actions"><button className="mini" onClick={() => void openView(r)}>Visualizar</button>{canEdit && <button className="mini" onClick={() => edit(r)}>Editar</button>}</div></td>
-        </tr>
-      }) : <tr><td colSpan={12}>Nenhum lançamento encontrado.</td></tr>}</tbody></table></div>
-      <div className="pagination"><button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>Página {page} de {pages} · {rows.length} registro(s)</span><button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Próxima</button></div>
+
+      <div className="table-wrap">
+        <table className="data-table purchase-table">
+          <thead><tr>
+            <th>Empresa</th><th>Requisição</th><th>OC</th><th>Data</th><th>Pedido ML</th><th>Cartão</th>
+            <th>NF(s)</th><th>NF total</th><th>Valor cartão</th><th>Conferência</th><th>Status</th><th>Ações</th>
+          </tr></thead>
+          <tbody>
+            {visible.length ? visible.map(r => {
+              const diff = Number(r.valor_operacao_cartao || 0) - Number(r.valor_nf_total || 0)
+              return <tr key={r.id}>
+                <td><b>{r.empresa_apelido ?? '—'}</b></td>
+                <td><b>{r.nro_requisicao}</b></td>
+                <td>{r.nro_oc ?? <span className="warn">Não informado</span>}</td>
+                <td>{toDateInput(r.data_compra).split('-').reverse().join('/')}</td>
+                <td>{r.ml_order_id ?? '—'}</td>
+                <td>{r.cartao ? '✓ Sim' : 'Não'}</td>
+                <td>{r.quantidade_notas ?? 0}</td>
+                <td>{brl(r.valor_nf_total)}</td>
+                <td>{brl(r.valor_operacao_cartao)}</td>
+                <td>{diff > 0.01 ? <span className="warn">Faltam {brl(diff)}</span> : diff < -0.01 ? <span className="warn">Excede {brl(Math.abs(diff))}</span> : r.valor_nf_total > 0 ? 'Conciliado' : 'Aguardando NF'}</td>
+                <td><span className="tag">{r.status_conferencia}</span></td>
+                <td><div className="actions">
+                  <button className="mini" onClick={() => void openView(r)}>Visualizar</button>
+                  {canEdit && <button className="mini" onClick={() => edit(r)}>Editar</button>}
+                </div></td>
+              </tr>
+            }) : <tr><td colSpan={12}>Nenhum lançamento encontrado.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="pagination">
+        <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Anterior</button>
+        <span>Página {page} de {pages} · {rows.length} registro(s)</span>
+        <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Próxima</button>
+      </div>
 
       {canEdit && <NotaFiscalLancamento rows={rows} canEdit={canEdit} />}
 
-      {canEdit && <div className="import-box"><h3>Importação de dados do Mercado Livre</h3><p className="muted">Use arquivos <b>CSV, TXT ou Excel</b> para carga manual. Os dados são pré-visualizados antes do processamento.</p>
-        <div className="form-grid"><label>Qual empresa corresponde aos arquivos que você está importando? *<select value={importEmpresa} onChange={e => setImportEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label></div>
-        {importEmpresa && <div className="notice">Empresa da importação: <b>{empresas.find(e => String(e.id) === importEmpresa)?.nome}</b></div>}
-        <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><button disabled className="standby-button" title="A carga automática é feita pelos botões de sincronização por empresa acima">Integrador com Mercado Livre: importação automática disponível acima</button></div>
-        {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s) lida(s).</div>}
-        {!!importRows.length && <><div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead><tbody>{importRows.slice(0,8).map((r,i)=><tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k=><td key={k}>{r[k]}</td>)}</tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={importManual} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button><button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button></div></>}
-      </div>
-    </> : <>
+      {canEdit && <div className="import-box">
+        <h3>Importação manual</h3>
+        <p className="muted">CSV, TXT ou Excel com prévia antes de gravar.</p>
+        <div className="form-grid">
+          <label>Empresa
+            <select value={importEmpresa} onChange={e => setImportEmpresa(e.target.value)}>
+              <option value="">Selecione a empresa</option>
+              {empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="actions">
+          <label className="file-button">Selecionar CSV/TXT/Excel
+            <input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) void prepareFile(f) }} />
+          </label>
+        </div>
+        {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s).</div>}
+        {!!importRows.length && <>
+          <div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead>
+            <tbody>{importRows.slice(0,8).map((r,i) => <tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k => <td key={k}>{r[k]}</td>)}</tr>)}</tbody>
+          </table></div>
+          <div className="actions">
+            <button className="primary" onClick={() => void importManual()} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button>
+            <button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button>
+          </div>
+        </>}
+      </div>}
+    </>}
+
+    {mode === 'lancamento' && <>
       <div className="form-grid">
         <label>Empresa do lançamento *
           <select value={lancamentoEmpresa} disabled={!!selected} onChange={e => setLancamentoEmpresa(e.target.value)}>
@@ -439,31 +494,39 @@ export function PurchasesPage({ profile, empresas }: Props) {
     {viewing && <div className="modal-backdrop" role="presentation" onClick={() => setViewing(null)}>
       <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="compra-detalhe-title" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
-          <div><h2 id="compra-detalhe-title">Visualização do lançamento</h2><p className="muted">Detalhes do lançamento, conciliação NF × cartão e retorno do Mercado Livre.</p></div>
+          <div><h2 id="compra-detalhe-title">Visualização do lançamento</h2><p className="muted">Compra, cartão, conferência fiscal e retorno do Mercado Livre.</p></div>
           <button onClick={() => setViewing(null)}>Fechar</button>
         </div>
         <div className="detail-grid">
           <div><b>Empresa</b><span>{viewing.empresa_apelido ?? '—'}</span></div>
-          <div><b>Nº Requisição</b><span>{viewing.nro_requisicao}</span></div>
-          <div><b>Nº OC</b><span>{viewing.nro_oc ?? '—'}</span></div>
           <div><b>Pedido Mercado Livre</b><span>{viewing.ml_order_id ?? '—'}</span></div>
           <div><b>Pack</b><span>{viewing.ml_pack_id ?? '—'}</span></div>
+          <div><b>Requisição</b><span>{viewing.nro_requisicao}</span></div>
+          <div><b>OC</b><span>{viewing.nro_oc ?? '—'}</span></div>
           <div><b>Data da compra</b><span>{toDateInput(viewing.data_compra).split('-').reverse().join('/')}</span></div>
-          <div><b>Valor pago no cartão</b><span>{brl(viewing.valor_operacao_cartao)}</span></div>
-          <div><b>Valor pago informado pelo ML</b><span>{brl(viewing.ml_paid_amount)}</span></div>
-          <div><b>Soma das notas</b><span>{brl(viewing.valor_nf_total)}</span></div>
-          <div><b>Diferença cartão × notas</b><span>{brl(Math.abs(viewing.valor_nf_total - viewing.valor_operacao_cartao))}</span></div>
-          <div><b>Quantidade de NF</b><span>{viewing.quantidade_notas ?? 0}</span></div>
-          <div><b>Quantidade de itens</b><span>{viewing.quantidade_itens ?? 0}</span></div>
-          <div><b>Números das NF</b><span>{viewing.numeros_nf ?? '—'}</span></div>
-          <div><b>Frete ML</b><span>{brl(viewing.valor_frete)}</span></div>
-          <div><b>Desconto</b><span>{brl(viewing.valor_desconto ?? 0)}</span></div>
-          <div><b>Cupom</b><span>{viewing.ml_coupon_amount && viewing.ml_coupon_amount > 0 ? brl(viewing.ml_coupon_amount) : 'Nenhum cupom informado'}</span></div>
-          <div><b>ID do cupom</b><span>{viewing.ml_coupon_id ?? '—'}</span></div>
-          <div><b>Estorno</b><span>{viewing.data_estorno ? new Date(viewing.data_estorno).toLocaleString('pt-BR') : 'Nenhum informado'}</span></div>
-          <div><b>Status da conferência</b><span className="tag">{viewing.status_conferencia}</span></div>
-          <div style={{gridColumn:'1 / -1'}}><b>Conferência</b><span>{viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Sem divergência informada.'}</span></div>
-          <div style={{gridColumn:'1 / -1'}}><b>Observação</b><span>{viewing.observacao ?? '—'}</span></div>
+          <div><b>Cartão</b><span>{viewing.cartao ? '✓ Marcado para conciliação' : 'Não marcado'}</span></div>
+          <div><b>Últimos 4 dígitos</b><span>{viewing.ultimos_digitos_cartao ? '•••• ' + viewing.ultimos_digitos_cartao : '—'}</span></div>
+        </div>
+        <div className="import-box">
+          <h3>Conferência financeira</h3>
+          <div className="detail-grid">
+            <div><b>Valor pago no cartão</b><span>{brl(viewing.valor_operacao_cartao)}</span></div>
+            <div><b>Valor pago informado pelo ML</b><span>{brl(viewing.ml_paid_amount)}</span></div>
+            <div><b>Soma das NF(s)/itens</b><span>{brl(viewing.valor_nf_total)}</span></div>
+            <div><b>Saldo para atingir o cartão</b><span>{brl(Math.max(0, Number(viewing.valor_operacao_cartao || 0) - Number(viewing.valor_nf_total || 0)))}</span></div>
+            <div style={{ gridColumn: '1 / -1' }}><b>Retorno da conferência</b><span>{viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Ainda não há NF suficiente para concluir a conferência.'}</span></div>
+          </div>
+        </div>
+        <div className="import-box">
+          <h3>Ajustes/retornos financeiros do Mercado Livre</h3>
+          <div className="detail-grid">
+            <div><b>Estorno</b><span>{viewing.data_estorno ? new Date(viewing.data_estorno).toLocaleString('pt-BR') : 'Nenhum estorno informado'}</span></div>
+            <div><b>Frete</b><span>{brl(viewing.valor_frete ?? 0)}</span></div>
+            <div><b>Desconto</b><span>{brl(viewing.valor_desconto ?? 0)}</span></div>
+            <div><b>Cupom</b><span>{viewing.ml_coupon_amount && viewing.ml_coupon_amount > 0 ? brl(viewing.ml_coupon_amount) : 'Nenhum cupom informado'}</span></div>
+            <div><b>ID do cupom</b><span>{viewing.ml_coupon_id ?? '—'}</span></div>
+            <div style={{ gridColumn: '1 / -1' }}><b>Resumo financeiro ML</b><span>{viewing.ml_resumo_financeiro ?? 'Nenhum ajuste financeiro retornado.'}</span></div>
+          </div>
         </div>
         <div className="import-box">
           <h3>Retorno do Mercado Livre</h3>
@@ -478,58 +541,41 @@ export function PurchasesPage({ profile, empresas }: Props) {
             <div><b>Tags</b><span>{viewing.ml_tags ?? '—'}</span></div>
             <div><b>Data fechamento ML</b><span>{viewing.ml_date_closed ? new Date(viewing.ml_date_closed).toLocaleString('pt-BR') : '—'}</span></div>
             <div><b>Última atualização ML</b><span>{viewing.ml_last_updated ? new Date(viewing.ml_last_updated).toLocaleString('pt-BR') : '—'}</span></div>
-            <div style={{gridColumn:'1 / -1'}}><b>Resumo financeiro ML</b><span>{viewing.ml_resumo_financeiro ?? 'Nenhum ajuste financeiro retornado.'}</span></div>
           </div>
         </div>
-<div className="import-box">
+        <div className="import-box">
           <h3>DOCUMENTO FISCAL</h3>
-          <p className="muted">Cada NF é um lançamento fiscal separado. O cartão permanece como um único pagamento. O acumulado mostra quanto das NF(s) já foi lançado contra o valor pago no cartão.</p>
-          {viewBusy ? <div className="notice">Carregando documentos fiscais...</div> : viewingNotas.length === 0 ? <div className="notice">Nenhuma NF vinculada a esta compra. Quando a NF estiver disponível, lance-a individualmente e ela aparecerá aqui.</div> : <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead><tr><th>#</th><th>NF</th><th>Série</th><th>Emissão</th><th>Valor NF</th><th>Acumulado</th><th>Saldo cartão</th><th>Status</th></tr></thead>
-                <tbody>{(() => {
-                  let accumulated = 0
-                  return viewingNotas.map((n, index) => {
-                    accumulated += Number(n.valor_total || 0)
-                    const remaining = Number(viewing.valor_operacao_cartao || 0) - accumulated
-                    return <tr key={n.id}>
-                      <td>{index + 1}</td>
-                      <td><b>{n.numero_nf ?? '—'}</b></td>
-                      <td>{n.serie_nf ?? '—'}</td>
-                      <td>{n.data_emissao ? n.data_emissao.slice(0,10).split('-').reverse().join('/') : '—'}</td>
-                      <td>{brl(n.valor_total)}</td>
-                      <td>{brl(accumulated)}</td>
-                      <td>{brl(Math.max(0, remaining))}</td>
-                      <td><span className="tag">{n.status_nf ?? 'LANÇADA'}</span></td>
-                    </tr>
-                  })
-                })()}</tbody>
-              </table>
-            </div>
-            <div className="notice"><b>Conferência das NF(s):</b> {viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Soma das NF(s) em conferência.'}</div>
-            <div style={{ marginTop: 12 }}>
-              <h4>Itens das NF(s)</h4>
-              {viewingItens.length === 0 ? <p className="muted">Nenhum item detalhado foi registrado nas NF(s).</p> : <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr><th>NF</th><th>Item</th><th>Descrição</th><th>Qtd.</th><th>Unitário</th><th>Total itens</th></tr></thead>
-                  <tbody>{viewingItens.map(item => {
-                    const note = viewingNotas.find(n => n.id === item.nota_fiscal_id)
-                    return <tr key={item.id}>
-                      <td>{note?.numero_nf ?? '—'}</td>
-                      <td>{item.numero_item ?? '—'}</td>
-                      <td>{item.descricao}</td>
-                      <td>{item.quantidade} {item.unidade ?? ''}</td>
-                      <td>{brl(item.valor_unitario)}</td>
-                      <td>{brl(item.valor_produtos)}</td>
-                    </tr>
-                  })}</tbody>
-                </table>
-              </div>}
-            </div>
-          </>}
+          <p className="muted">Cada NF é um lançamento fiscal separado. O cartão continua sendo um único pagamento; o acumulado mostra quanto já foi lançado contra o cartão.</p>
+          {viewBusy ? <div className="notice">Carregando documentos fiscais...</div> : viewingNotas.length === 0 ? <div className="notice">Nenhuma NF vinculada a esta compra. Quando a NF estiver disponível, lance-a individualmente e ela aparecerá aqui.</div> : <div className="table-wrap">
+            <table className="data-table">
+              <thead><tr><th>#</th><th>NF</th><th>Série</th><th>Emissão</th><th>Valor NF</th><th>Acumulado</th><th>Saldo cartão</th><th>Status</th></tr></thead>
+              <tbody>{(() => {
+                let accumulated = 0
+                return viewingNotas.map((n, index) => {
+                  accumulated += Number(n.valor_total || 0)
+                  const remaining = Number(viewing.valor_operacao_cartao || 0) - accumulated
+                  return <tr key={n.id}>
+                    <td>{index + 1}</td><td><b>{n.numero_nf ?? '—'}</b></td><td>{n.serie_nf ?? '—'}</td>
+                    <td>{n.data_emissao ? n.data_emissao.slice(0,10).split('-').reverse().join('/') : '—'}</td>
+                    <td>{brl(n.valor_total)}</td><td>{brl(accumulated)}</td><td>{brl(Math.max(0, remaining))}</td>
+                    <td><span className="tag">{n.status_nf ?? 'LANÇADA'}</span></td>
+                  </tr>
+                })
+              })()}</tbody>
+            </table>
+          </div>}
+          {viewingItens.length > 0 && <div style={{ marginTop: 12 }}>
+            <h4>Itens das NF(s)</h4>
+            <div className="table-wrap"><table className="data-table">
+              <thead><tr><th>NF</th><th>Item</th><th>Descrição</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead>
+              <tbody>{viewingItens.map(item => {
+                const note = viewingNotas.find(n => n.id === item.nota_fiscal_id)
+                return <tr key={item.id}><td>{note?.numero_nf ?? '—'}</td><td>{item.numero_item ?? '—'}</td><td>{item.descricao}</td><td>{item.quantidade} {item.unidade ?? ''}</td><td>{brl(item.valor_unitario)}</td><td>{brl(item.valor_produtos)}</td></tr>
+              })}</tbody>
+            </table></div>
+          </div>}
         </div>
-                <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }} disabled={!canEdit}>Editar este lançamento</button></div>
+        {canEdit && <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }}>Editar este lançamento</button></div>}
       </div>
     </div>}
   </section>
