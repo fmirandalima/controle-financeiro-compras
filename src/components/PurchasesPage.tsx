@@ -393,7 +393,47 @@ export function PurchasesPage({ profile, empresas }: Props) {
         <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><button disabled className="standby-button" title="A carga automática é feita pelos botões de sincronização por empresa acima">Integrador com Mercado Livre: importação automática disponível acima</button></div>
         {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s) lida(s).</div>}
         {!!importRows.length && <><div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead><tbody>{importRows.slice(0,8).map((r,i)=><tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k=><td key={k}>{r[k]}</td>)}</tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={importManual} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button><button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button></div></>}
-      </div>}
+      </div>
+    </> : <>
+      <div className="form-grid">
+        <label>Empresa do lançamento *
+          <select value={lancamentoEmpresa} disabled={!!selected} onChange={e => setLancamentoEmpresa(e.target.value)}>
+            <option value="">Selecione a empresa</option>
+            {empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}
+          </select>
+        </label>
+        <label>Nº Requisição *
+          <input inputMode="numeric" maxLength={7} value={form.nro_requisicao} onChange={e => setForm(f => ({ ...f, nro_requisicao: e.target.value.replace(/\D/g,'').slice(0,7) }))} />
+        </label>
+        <label>Data da compra *
+          <input type="date" value={form.data_compra} onChange={e => setForm(f => ({ ...f, data_compra: e.target.value }))} />
+        </label>
+        <label>Nº pedido/compra Mercado Livre
+          <input value={form.ml_order_id} onChange={e => setForm(f => ({ ...f, ml_order_id: e.target.value }))} />
+        </label>
+        <label>Valor pago no cartão *
+          <input inputMode="decimal" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" />
+        </label>
+        <label>Últimos 4 dígitos do cartão
+          <input inputMode="numeric" maxLength={4} value={form.ultimos_digitos_cartao} onChange={e => setForm(f => ({ ...f, ultimos_digitos_cartao: e.target.value.replace(/\D/g,'').slice(0,4) }))} />
+        </label>
+        <label>Observação (até 120 caracteres)
+          <input maxLength={120} value={form.observacao} onChange={e => setForm(f => ({ ...f, observacao: e.target.value.slice(0,120) }))} />
+        </label>
+        <label>Nº Ordem de Compra (OC)
+          <input inputMode="numeric" maxLength={7} value={form.nro_oc} onChange={e => setForm(f => ({ ...f, nro_oc: e.target.value.replace(/\D/g,'').slice(0,7) }))} placeholder="Opcional" />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={cartaoMarcado} onChange={e => setCartaoMarcado(e.target.checked)} />
+          Cartão — usar na conciliação
+        </label>
+      </div>
+      {message && <div className={message.startsWith('Não') || message.startsWith('Informe') ? 'error-box' : 'notice'}>{message}</div>}
+      <div className="actions">
+        <button className="primary" onClick={() => void save()} disabled={busy || !lancamentoEmpresa}>{busy ? 'Salvando...' : 'Salvar lançamento'}</button>
+        <button onClick={() => setMode('consulta')}>Cancelar</button>
+      </div>
+      <div className="notice"><b>Regra:</b> o Nº OC é opcional. A compra pode ser salva sem NF; quando as NF(s) chegarem, elas serão lançadas individualmente em DOCUMENTO FISCAL.</div>
     </>}
 
     {viewing && <div className="modal-backdrop" role="presentation" onClick={() => setViewing(null)}>
