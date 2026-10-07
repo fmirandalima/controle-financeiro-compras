@@ -27,12 +27,10 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   oc_cancelada: boolean
   cidade_uf_destino: string | null
   observacao: string | null
-  notas_count: number
-  itens_count: number
   numeros_nf: string | null
   resumo_conferencia?: string | null
-  observacao_divergencia: string | null
   quantidade_notas?: number
+  quantidade_itens?: number
   quantidade_itens?: number
   ml_pack_id?: string | null
   ml_paid_amount?: number | null
@@ -294,7 +292,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   return <section className="panel purchases-panel">
     <div className="panel-head">
-      <div><h2>Compras — Mercado Livre</h2><p className="muted">Consulta e lançamento de compras. A sincronização automática consulta os últimos 30 dias do Mercado Livre.</p></div>
+      <div><h2>Compras — Mercado Livre · Layout 2.0</h2><p className="muted">Consulta, visualização e edição dos lançamentos. O cartão permanece como um único pagamento e as NF(s) ficam fracionadas em DOCUMENTO FISCAL.</p></div>
       <div className="actions"><button className={mode === 'consulta' ? 'primary' : ''} onClick={() => setMode('consulta')}>Consulta</button>{canEdit && <button className={mode === 'lancamento' ? 'primary' : ''} onClick={newLaunch}>Novo lançamento</button>}</div>
     </div>
 
@@ -415,11 +413,13 @@ export function PurchasesPage({ profile, empresas }: Props) {
           <div><b>Valor pago informado pelo ML</b><span>{brl(viewing.ml_paid_amount)}</span></div>
           <div><b>Soma das notas</b><span>{brl(viewing.valor_nf_total)}</span></div>
           <div><b>Diferença cartão × notas</b><span>{brl(Math.abs(viewing.valor_nf_total - viewing.valor_operacao_cartao))}</span></div>
-          <div><b>Quantidade de NF</b><span>{viewing.notas_count}</span></div>
-          <div><b>Quantidade de itens</b><span>{viewing.itens_count}</span></div>
+          <div><b>Quantidade de NF</b><span>{viewing.quantidade_notas ?? 0}</span></div>
+          <div><b>Quantidade de itens</b><span>{viewing.quantidade_itens ?? 0}</span></div>
           <div><b>Números das NF</b><span>{viewing.numeros_nf ?? '—'}</span></div>
           <div><b>Frete ML</b><span>{brl(viewing.valor_frete)}</span></div>
-          <div><b>Desconto/Cupom</b><span>{brl(viewing.valor_desconto)}</span></div>
+          <div><b>Desconto</b><span>{brl(viewing.valor_desconto ?? 0)}</span></div>
+          <div><b>Cupom</b><span>{viewing.ml_coupon_amount && viewing.ml_coupon_amount > 0 ? brl(viewing.ml_coupon_amount) : 'Nenhum cupom informado'}</span></div>
+          <div><b>ID do cupom</b><span>{viewing.ml_coupon_id ?? '—'}</span></div>
           <div><b>Estorno</b><span>{viewing.data_estorno ? new Date(viewing.data_estorno).toLocaleString('pt-BR') : 'Nenhum informado'}</span></div>
           <div><b>Status da conferência</b><span className="tag">{viewing.status_conferencia}</span></div>
           <div style={{gridColumn:'1 / -1'}}><b>Conferência</b><span>{viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Sem divergência informada.'}</span></div>
@@ -441,7 +441,55 @@ export function PurchasesPage({ profile, empresas }: Props) {
             <div style={{gridColumn:'1 / -1'}}><b>Resumo financeiro ML</b><span>{viewing.ml_resumo_financeiro ?? 'Nenhum ajuste financeiro retornado.'}</span></div>
           </div>
         </div>
-        <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }} disabled={!canEdit}>Editar este lançamento</button></div>
+<div className="import-box">
+          <h3>DOCUMENTO FISCAL</h3>
+          <p className="muted">Cada NF é um lançamento fiscal separado. O cartão permanece como um único pagamento. O acumulado mostra quanto das NF(s) já foi lançado contra o valor pago no cartão.</p>
+          {viewBusy ? <div className="notice">Carregando documentos fiscais...</div> : viewingNotas.length === 0 ? <div className="notice">Nenhuma NF vinculada a esta compra. Quando a NF estiver disponível, lance-a individualmente e ela aparecerá aqui.</div> : <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>#</th><th>NF</th><th>Série</th><th>Emissão</th><th>Valor NF</th><th>Acumulado</th><th>Saldo cartão</th><th>Status</th></tr></thead>
+                <tbody>{(() => {
+                  let accumulated = 0
+                  return viewingNotas.map((n, index) => {
+                    accumulated += Number(n.valor_total || 0)
+                    const remaining = Number(viewing.valor_operacao_cartao || 0) - accumulated
+                    return <tr key={n.id}>
+                      <td>{index + 1}</td>
+                      <td><b>{n.numero_nf ?? '—'}</b></td>
+                      <td>{n.serie_nf ?? '—'}</td>
+                      <td>{n.data_emissao ? n.data_emissao.slice(0,10).split('-').reverse().join('/') : '—'}</td>
+                      <td>{brl(n.valor_total)}</td>
+                      <td>{brl(accumulated)}</td>
+                      <td>{brl(Math.max(0, remaining))}</td>
+                      <td><span className="tag">{n.status_nf ?? 'LANÇADA'}</span></td>
+                    </tr>
+                  })
+                })()}</tbody>
+              </table>
+            </div>
+            <div className="notice"><b>Conferência das NF(s):</b> {viewing.resumo_conferencia ?? viewing.observacao_divergencia ?? 'Soma das NF(s) em conferência.'}</div>
+            <div style={{ marginTop: 12 }}>
+              <h4>Itens das NF(s)</h4>
+              {viewingItens.length === 0 ? <p className="muted">Nenhum item detalhado foi registrado nas NF(s).</p> : <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr><th>NF</th><th>Item</th><th>Descrição</th><th>Qtd.</th><th>Unitário</th><th>Total itens</th></tr></thead>
+                  <tbody>{viewingItens.map(item => {
+                    const note = viewingNotas.find(n => n.id === item.nota_fiscal_id)
+                    return <tr key={item.id}>
+                      <td>{note?.numero_nf ?? '—'}</td>
+                      <td>{item.numero_item ?? '—'}</td>
+                      <td>{item.descricao}</td>
+                      <td>{item.quantidade} {item.unidade ?? ''}</td>
+                      <td>{brl(item.valor_unitario)}</td>
+                      <td>{brl(item.valor_produtos)}</td>
+                    </tr>
+                  })}</tbody>
+                </table>
+              </div>}
+            </div>
+          </>}
+        </div>
+                <div className="actions"><button onClick={() => { setViewing(null); edit(viewing) }} disabled={!canEdit}>Editar este lançamento</button></div>
       </div>
     </div>}
   </section>
