@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import type { Perfil } from '../types'
-export type ScreenKey = 'CONSULTA'|'COMPRAS'|'CARTAO'|'IMPORTACAO'|'AUDITORIA'|'ADMINISTRACAO'
+export type ScreenKey = 'CONSULTA'|'COMPRAS'|'CARTAO'|'IMPORTACAO'|'AUDITORIA'|'ADMINISTRACAO'|'REQUISICOES'|'PATRIMONIO'
 export type ScreenAction = 'visualizar'|'criar'|'editar'|'excluir'|'importar'
 export type ScreenPermissions = Record<ScreenAction, boolean>
 export const NO_PERMISSIONS: ScreenPermissions = { visualizar:false, criar:false, editar:false, excluir:false, importar:false }
