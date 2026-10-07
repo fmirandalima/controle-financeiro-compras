@@ -21,6 +21,10 @@ import { NotaFiscalLancamento } from './NotaFiscalLancamento'
   palavra_chave: string | null
   status_conferencia: string
   status_erp: boolean
+  cartao: boolean
+  status_entrega: string | null
+  oc_cancelada: boolean
+  cidade_uf_destino: string | null
   observacao: string | null
   notas_count: number
   itens_count: number
@@ -54,9 +58,12 @@ export function PurchasesPage({ profile, empresas }: Props) {
   const [selected, setSelected] = useState<Compra | null>(null)
   const [form, setForm] = useState({ nro_requisicao: '', data_compra: '', ml_order_id: '', valor: '', nro_oc: '', ultimos_digitos_cartao: '', observacao: '' })
   const [lancamentoEmpresa, setLancamentoEmpresa] = useState('')
+  const [cartaoMarcado, setCartaoMarcado] = useState(true)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importRows, setImportRows] = useState<Array<Record<string, string>>>([])
   const [importEmpresa, setImportEmpresa] = useState('')
+  const [mlStatus, setMlStatus] = useState<Record<string, { empresa_id: string | null; status: string; mensagem: string | null }>>({})
+  const [mlMessage, setMlMessage] = useState('')
   const canEdit = profile.role === 'FATURAMENTO' || profile.role === 'COMPRAS'
   const canEditErp = profile.role === 'FATURAMENTO'
 
@@ -90,6 +97,15 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   useEffect(() => { if (!empresa && empresas[0]) setEmpresa(String(empresas[0].id)) }, [empresas])
   useEffect(() => { if (mode === 'consulta') load() }, [empresa, status])
+  async function loadMlStatus() {
+    const { data, error } = await supabase.from('integracoes_empresa')
+      .select('codigo_empresa,empresa_id,status,mensagem').eq('integracao', 'MERCADO_LIVRE')
+    if (error) { setMlMessage('Não foi possível consultar o status Mercado Livre: ' + error.message); return }
+    const next: Record<string, { empresa_id: string | null; status: string; mensagem: string | null }> = {}
+    for (const row of (data ?? []) as Array<{codigo_empresa:string;empresa_id:string|null;status:string;mensagem:string|null}>) next[row.codigo_empresa] = row
+    setMlStatus(next)
+  }
+  useEffect(() => { void loadMlStatus() }, [])
 
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const visible = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize])
@@ -98,6 +114,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
     setSelected(null)
     setForm({ nro_requisicao: '', data_compra: '', ml_order_id: '', valor: '', nro_oc: '', ultimos_digitos_cartao: '', observacao: '' })
     setLancamentoEmpresa('')
+    setCartaoMarcado(true)
     setMessage('')
     setMode('lancamento')
   }
@@ -105,6 +122,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
   function edit(row: Compra) {
     setSelected(row)
     setLancamentoEmpresa(String(row.empresa_id))
+    setCartaoMarcado(Boolean(row.cartao))
     setForm({
       nro_requisicao: String(row.nro_requisicao ?? ''),
       data_compra: toDateInput(row.data_compra),
@@ -135,14 +153,15 @@ export function PurchasesPage({ profile, empresas }: Props) {
     const rpcName = selected ? 'atualizar_lancamento_compra' : 'criar_lancamento_compra'
     const rpcArgs = selected
       ? {
-          p_id: selected.id, p_nro_requisicao: req, p_data_compra: form.data_compra,
+          p_id: selected.id, p_empresa_id: lancamentoEmpresa, p_nro_requisicao: req, p_data_compra: form.data_compra,
           p_ml_order_id: form.ml_order_id.trim() || null, p_valor_operacao_cartao: valor, p_nro_oc: oc,
-          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null,
+          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: Boolean(selected.status_erp),
+          p_cartao: cartaoMarcado, p_status_entrega: selected.status_entrega || 'PENDENTE', p_oc_cancelada: Boolean(selected.oc_cancelada), p_cidade_uf_destino: selected.cidade_uf_destino || null,
         }
       : {
           p_empresa_id: lancamentoEmpresa, p_nro_requisicao: req, p_data_compra: form.data_compra,
           p_ml_order_id: form.ml_order_id.trim() || null, p_valor_operacao_cartao: valor, p_nro_oc: oc,
-          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: false,
+          p_ultimos_digitos_cartao: cartao || null, p_observacao: observacao || null, p_status_erp: false, p_cartao: cartaoMarcado, p_status_entrega: 'PENDENTE', p_oc_cancelada: false, p_cidade_uf_destino: null,
         }
     const { data, error } = await supabase.rpc(rpcName, rpcArgs)
     if (error) setMessage(`Não foi possível salvar: ${error.message}`)
@@ -169,7 +188,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
       const cartao = get('final_cartao','final cartão','ultimos_digitos_cartao','últimos dígitos do cartão').replace(/\D/g,'').slice(0,4)
       const ocRaw = get('nro oc','nº oc','oc','nro_ordem_compra'); const oc = ocRaw ? Number(ocRaw) : null
       if (!Number.isInteger(req) || req < 0 || req > 9999999 || !data || !order || !Number.isFinite(valor) || valor < 0) { errors++; continue }
-      const { error } = await supabase.rpc('criar_lancamento_compra', { p_empresa_id: importEmpresa, p_nro_requisicao: req, p_data_compra: data, p_ml_order_id: order, p_valor_operacao_cartao: valor, p_nro_oc: Number.isInteger(oc) ? oc : null, p_ultimos_digitos_cartao: cartao || null, p_observacao: null, p_status_erp: false })
+      const { error } = await supabase.rpc('criar_lancamento_compra', { p_empresa_id: importEmpresa, p_nro_requisicao: req, p_data_compra: data, p_ml_order_id: order, p_valor_operacao_cartao: valor, p_nro_oc: Number.isInteger(oc) ? oc : null, p_ultimos_digitos_cartao: cartao || null, p_observacao: null, p_status_erp: false, p_cartao: true, p_status_entrega: 'PENDENTE', p_oc_cancelada: false, p_cidade_uf_destino: null })
       if (error) errors++; else processed++
     }
     const empresaNome = empresas.find(e => String(e.id) === importEmpresa)?.nome ?? 'empresa selecionada'
@@ -200,6 +219,31 @@ export function PurchasesPage({ profile, empresas }: Props) {
     </div>
 
     {mode === 'consulta' ? <>
+      <div className="import-box">
+        <h3>Integração Mercado Livre por empresa</h3>
+        <p className="muted">Conta Simples não participa deste fluxo. As ações abaixo são exclusivas da importação de compras do Mercado Livre.</p>
+        {mlMessage && <div className="notice">{mlMessage}</div>}
+        <div className="form-grid">
+          {[
+            ['104','Importar compras Mercado Livre — Empresa 104'],
+            ['001','Importar compras Mercado Livre — Empresas Matriz e Filiais 001'],
+          ].map(([codigo,titulo]) => {
+            const s = mlStatus[codigo]
+            const destino = empresas.find(e => e.codigo_empresa === codigo)
+            return <article className="panel" key={codigo}>
+              <h3>{titulo}</h3>
+              <p className="muted">Destino: {destino ? codigo + ' — ' + destino.nome : codigo + ' — empresa não vinculada'}</p>
+              <p><strong>Status:</strong> {s?.status ?? 'NÃO CONFIGURADO'}</p>
+              <button className="primary" onClick={() => {
+                if (!s?.empresa_id || s.status !== 'CONECTADO') setMlMessage('Empresa ' + codigo + ' não está conectada ao Mercado Livre. Nenhuma compra foi importada.')
+                else setMlMessage('Empresa ' + codigo + ' está conectada. O executor seguro da API ainda não foi publicado; nenhuma compra foi importada.')
+              }}>{titulo}</button>
+            </article>
+          })}
+        </div>
+        <div className="actions"><button onClick={loadMlStatus}>Atualizar status ML</button></div>
+      </div>
+
       <div className="filters purchase-filters">
         <select value={empresa} onChange={e => setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Requisição, OC, NF ou pedido ML" onKeyDown={e => { if (e.key === 'Enter') load() }} />
