@@ -134,7 +134,7 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
       <button className={tab === 'principal' ? 'active' : ''} onClick={() => setTab('principal')}>Principal</button>
       {cartao && <button className={tab === 'cartao' ? 'active' : ''} onClick={() => setTab('cartao')}>Cartão</button>}
       {importacao.permissions.visualizar && <button className={tab === 'importacao' ? 'active' : ''} onClick={() => setTab('importacao')}>Importação</button>}
-      {compras.permissions.visualizar && <button className={tab === 'compras' ? 'active' : ''} onClick={() => setTab('compras')}>Compras</button>}
+      {compras.permissions.visualizar && <button className={tab === 'compras' ? 'active' : ''} onClick={() => setTab('compras')}>Compras 2.0</button>}
       {(admin || requisicoes.permissions.visualizar) && <button className={tab === 'requisicoes' ? 'active' : ''} onClick={() => setTab('requisicoes')}>Requisições</button>}
       {(admin || patrimonio.permissions.visualizar) && <button className={tab === 'patrimonio' ? 'active' : ''} onClick={() => setTab('patrimonio')}>Patrimônio</button>}
       {consulta.permissions.visualizar && <button className={tab === 'consulta' ? 'active' : ''} onClick={() => setTab('consulta')}>Consulta</button>}
@@ -144,7 +144,7 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
 
     <section className="content">
       {tab === 'principal' && <section className="panel">
-        <div className="panel-head"><div><h2>SIGCF 2.0</h2><p className="muted">Controle Financeiro integrado a Compras, Patrimônio, Requisições e auditoria.</p></div></div>
+        <div className="panel-head"><div><h2>SIGCF 2.0</h2><p className="muted">Layout 2.0 com consulta, visualização e edição dos lançamentos de Compras, integrado a Mercado Livre, Patrimônio, Requisições e auditoria.</p></div></div>
         <Stats total={rows.length} receipts={receipts} sankhya={sankhya} finance={finance} />
         {alerts.length > 0 && <div className="notice"><b>Avisos financeiros:</b> {alerts.length} divergência(s) NF × cartão aguardando análise.</div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:10,marginTop:16}}>
