@@ -94,4 +94,23 @@ grant all on table public.vw_acompanhamento_compras to anon;
 grant all on table public.vw_acompanhamento_compras to authenticated;
 grant all on table public.vw_acompanhamento_compras to service_role;
 
+do $
+declare
+  r record;
+  ddl text;
+begin
+  for r in
+    select p.oid, pg_get_functiondef(p.oid) as definition
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public'
+      and p.proname in ('criar_lancamento_compra','atualizar_lancamento_compra')
+      and pg_get_functiondef(p.oid) ~* 'length\\(p_observacao\\)\\s*>\\s*10'
+  loop
+    ddl := regexp_replace(r.definition, 'length\\(p_observacao\\)\\s*>\\s*10', 'length(p_observacao) > 120', 'g');
+    ddl := replace(ddl, 'Observação deve ter no máximo 10 caracteres.', 'Observação deve ter no máximo 120 caracteres.');
+    execute ddl;
+  end loop;
+end $;
+
 commit;
