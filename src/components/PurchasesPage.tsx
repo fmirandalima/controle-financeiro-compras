@@ -214,7 +214,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
 
   return <section className="panel purchases-panel">
     <div className="panel-head">
-      <div><h2>Compras — Mercado Livre</h2><p className="muted">Consulta e lançamento de compras. Integração automática está em stand by.</p></div>
+      <div><h2>Compras — Mercado Livre</h2><p className="muted">Consulta e lançamento de compras. A sincronização automática consulta os últimos 30 dias do Mercado Livre.</p></div>
       <div className="actions"><button className={mode === 'consulta' ? 'primary' : ''} onClick={() => setMode('consulta')}>Consulta</button>{canEdit && <button className={mode === 'lancamento' ? 'primary' : ''} onClick={newLaunch}>Novo lançamento</button>}</div>
     </div>
 
@@ -234,10 +234,38 @@ export function PurchasesPage({ profile, empresas }: Props) {
               <h3>{titulo}</h3>
               <p className="muted">Destino: {destino ? codigo + ' — ' + destino.nome : codigo + ' — empresa não vinculada'}</p>
               <p><strong>Status:</strong> {s?.status ?? 'NÃO CONFIGURADO'}</p>
-              <button className="primary" onClick={() => {
-                if (!s?.empresa_id || s.status !== 'CONECTADO') setMlMessage('Empresa ' + codigo + ' não está conectada ao Mercado Livre. Nenhuma compra foi importada.')
-                else setMlMessage('Empresa ' + codigo + ' está conectada. O executor seguro da API ainda não foi publicado; nenhuma compra foi importada.')
-              }}>{titulo}</button>
+              <button className="primary" disabled={busy} onClick={async () => {
+                if (!s?.empresa_id || s.status !== 'CONECTADO') {
+                  setMlMessage('Empresa ' + codigo + ' não está conectada ao Mercado Livre. Nenhuma compra foi importada.')
+                  return
+                }
+                if (codigo !== '104') {
+                  setMlMessage('A importação automática da empresa ' + codigo + ' ainda não está habilitada.')
+                  return
+                }
+                setBusy(true)
+                setMlMessage('Sincronizando compras da empresa 104 com o Mercado Livre...')
+                try {
+                  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+                  if (sessionError || !sessionData.session) throw new Error('Sua sessão expirou. Faça login novamente.')
+                  const today = new Date()
+                  const end = today.toISOString().slice(0, 10)
+                  const start = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10)
+                  const { data, error } = await supabase.functions.invoke('ml-sync-orders-104', {
+                    body: { start_date: start, end_date: end },
+                    headers: { Authorization: 'Bearer ' + sessionData.session.access_token },
+                  })
+                  if (error) throw new Error(error.message || 'Não foi possível executar a sincronização.')
+                  if (!data?.ok) throw new Error(data?.error || 'O Mercado Livre não retornou uma confirmação de sincronização.')
+                  setMlMessage('Sincronização concluída. Pedidos encontrados: ' + Number(data.found ?? 0) + '. Novos: ' + Number(data.inserted ?? 0) + '. Atualizados: ' + Number(data.updated ?? 0) + (Array.isArray(data.errors) && data.errors.length ? '. Erros: ' + data.errors.length + '.' : '.'))
+                  await load()
+                  await loadMlStatus()
+                } catch (e) {
+                  setMlMessage(e instanceof Error ? e.message : 'Falha ao sincronizar compras do Mercado Livre.')
+                } finally {
+                  setBusy(false)
+                }
+              }}>{busy ? 'Sincronizando...' : titulo}</button>
             </article>
           })}
         </div>
@@ -261,7 +289,7 @@ export function PurchasesPage({ profile, empresas }: Props) {
       {canEdit && <div className="import-box"><h3>Importação de dados do Mercado Livre</h3><p className="muted">Use arquivos <b>CSV, TXT ou Excel</b> para carga manual. Os dados são pré-visualizados antes do processamento.</p>
         <div className="form-grid"><label>Qual empresa corresponde aos arquivos que você está importando? *<select value={importEmpresa} onChange={e => setImportEmpresa(e.target.value)}><option value="">Selecione a empresa</option>{empresas.map(e => <option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select></label></div>
         {importEmpresa && <div className="notice">Empresa da importação: <b>{empresas.find(e => String(e.id) === importEmpresa)?.nome}</b></div>}
-        <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><button disabled className="standby-button" title="Integração automática temporariamente desativada">Integrador com Mercado Livre: importar automaticamente — Em stand by</button></div>
+        <div className="actions"><label className="file-button">Importar dados CSV, TXT ou Excel do Mercado Livre<input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) prepareFile(f) }} /></label><button disabled className="standby-button" title="A carga automática é feita pelos botões de sincronização por empresa acima">Integrador com Mercado Livre: importação automática disponível acima</button></div>
         {importFile && <div className="notice">Arquivo: <b>{importFile.name}</b> · {importRows.length} linha(s) lida(s).</div>}
         {!!importRows.length && <><div className="table-wrap"><table><thead><tr>{Object.keys(importRows[0]).slice(0,8).map(k => <th key={k}>{k}</th>)}</tr></thead><tbody>{importRows.slice(0,8).map((r,i)=><tr key={i}>{Object.keys(importRows[0]).slice(0,8).map(k=><td key={k}>{r[k]}</td>)}</tr>)}</tbody></table></div><div className="actions"><button className="primary" onClick={importManual} disabled={busy || !importEmpresa}>{busy ? 'Processando...' : 'Confirmar importação'}</button><button onClick={() => { setImportRows([]); setImportFile(null); setImportEmpresa('') }}>Cancelar prévia</button></div></>}
       </div>}
