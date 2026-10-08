@@ -121,10 +121,10 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
     const {data,error}=await q.limit(500)
     if(error) setMessage('Erro ao consultar lançamentos: '+error.message)
     else setRows((data??[]) as Lancamento[])
-    let p=supabase.from('compras_ml').select('id,empresa_id,empresa_apelido:nome,nro_requisicao,nro_oc,data_compra,ml_order_id,ml_pack_id,valor_operacao_cartao,valor_nf_total,diferenca_cartao_nf,status_conferencia,cartao,ultimos_digitos_cartao,data_estorno,valor_frete,valor_desconto,ml_coupon_amount,ml_discount_amount,ml_resumo_financeiro,observacao,ml_status,ml_status_detail,ml_tags,mercado_entregue').order('data_compra',{ascending:false})
+    let p=supabase.from('compras_ml').select('id,empresa_id,nro_requisicao,nro_oc,data_compra,ml_order_id,ml_pack_id,valor_operacao_cartao,valor_nf_total,diferenca_cartao_nf,status_conferencia,cartao,ultimos_digitos_cartao,data_estorno,valor_frete,valor_desconto,ml_coupon_amount,ml_discount_amount,ml_resumo_financeiro,observacao,ml_status,ml_status_detail,ml_tags,mercado_entregue').order('data_compra',{ascending:false})
     if(empresa) p=p.eq('empresa_id',empresa)
     const {data:pd}=await p.limit(500)
-    setPending(((pd??[]) as Compra[]).filter(c=>!rows.some(r=>r.compra_id===c.id)))
+    setPending(((pd??[]) as Compra[]).filter(c=>!((data??[]) as Lancamento[]).some(r=>r.compra_id===c.id)).map(c=>({...c,empresa_apelido:empresas.find(e=>String(e.id)===String(c.empresa_id))?.nome??null})))
     setBusy(false)
   }
 
