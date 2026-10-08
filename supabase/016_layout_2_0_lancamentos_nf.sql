@@ -45,16 +45,26 @@ create index if not exists idx_compras_ml_lancamentos_nf_empresa_data
 
 alter table public.compras_ml_lancamentos_nf enable row level security;
 
-drop policy if exists "compras_ml_lancamentos_nf_select_authenticated" on public.compras_ml_lancamentos_nf;
-create policy "compras_ml_lancamentos_nf_select_authenticated"
+drop policy if exists "compras_ml_lancamentos_nf_select" on public.compras_ml_lancamentos_nf;
+create policy "compras_ml_lancamentos_nf_select"
 on public.compras_ml_lancamentos_nf for select to authenticated
-using (true);
+using (public.current_user_is_admin() or public.current_app_role() in ('COMPRAS','FATURAMENTO','FINANCEIRO','GESTOR'));
 
-drop policy if exists "compras_ml_lancamentos_nf_admin_write" on public.compras_ml_lancamentos_nf;
-create policy "compras_ml_lancamentos_nf_admin_write"
-on public.compras_ml_lancamentos_nf for all to authenticated
-using (public.current_user_is_admin() or public.current_app_role() in ('FATURAMENTO','COMPRAS'))
-with check (public.current_user_is_admin() or public.current_app_role() in ('FATURAMENTO','COMPRAS'));
+drop policy if exists "compras_ml_lancamentos_nf_insert" on public.compras_ml_lancamentos_nf;
+create policy "compras_ml_lancamentos_nf_insert"
+on public.compras_ml_lancamentos_nf for insert to authenticated
+with check (public.current_user_is_admin() or public.current_app_role() in ('COMPRAS','FATURAMENTO'));
+
+drop policy if exists "compras_ml_lancamentos_nf_update" on public.compras_ml_lancamentos_nf;
+create policy "compras_ml_lancamentos_nf_update"
+on public.compras_ml_lancamentos_nf for update to authenticated
+using (public.current_user_is_admin() or public.current_app_role() in ('COMPRAS','FATURAMENTO'))
+with check (public.current_user_is_admin() or public.current_app_role() in ('COMPRAS','FATURAMENTO'));
+
+drop policy if exists "compras_ml_lancamentos_nf_delete" on public.compras_ml_lancamentos_nf;
+create policy "compras_ml_lancamentos_nf_delete"
+on public.compras_ml_lancamentos_nf for delete to authenticated
+using (public.current_user_is_admin() or public.current_app_role() in ('COMPRAS','FATURAMENTO'));
 
 create or replace function public.sincronizar_lancamentos_nf_compra(p_compra_id uuid)
 returns void
