@@ -68,6 +68,7 @@ type Compra = {
   ml_status_detail: string | null
   ml_tags: string | null
   mercado_entregue: boolean | null
+  status_erp: boolean
 }
 
 type Nota = {
