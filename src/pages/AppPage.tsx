@@ -5,6 +5,7 @@ import { Stats } from '../components/Stats'
 import { ImportPanel } from '../components/ImportPanel'
 import { TransactionTable } from '../components/TransactionTable'
 import { PurchasesPage } from '../components/PurchasesPage'
+import { PurchasesLayout2Page } from '../components/PurchasesLayout2Page'
 import { CartaoPage } from '../components/CartaoPage'
 import { PermissionsAdminPage } from '../components/PermissionsAdminPage'
 import { useScreenPermissions } from '../lib/permissions'
@@ -152,7 +153,7 @@ export function AppPage({ profile, onLogout }: { profile: Perfil; onLogout: () =
         </div>
       </section>}
 
-      {tab === 'compras' && compras.permissions.visualizar && <PurchasesPage profile={profile} empresas={empresas} />}
+      {tab === 'compras' && compras.permissions.visualizar && <PurchasesLayout2Page profile={profile} empresas={empresas} />}
       {tab === 'cartao' && cartao && <CartaoPage profile={profile} empresas={empresas} />}
       {tab === 'requisicoes' && (admin || requisicoes.permissions.visualizar) && <RequisicoesPanel />}
       {tab === 'patrimonio' && (admin || patrimonio.permissions.visualizar) && <PatrimonioPanel profile={profile} />}
