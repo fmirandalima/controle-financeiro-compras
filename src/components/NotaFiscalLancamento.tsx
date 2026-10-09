@@ -179,9 +179,9 @@ export function NotaFiscalLancamento({ rows, canEdit, initialCompraId, embedded 
       const total=Number(val(['infNFe > total > ICMSTot > vNF','total > ICMSTot > vNF','vNF'])||0)
       if(!nf||!total)throw new Error('Não encontrei número e valor total da NF-e.')
       const em=val(['ide > dhEmi','ide > dEmi','dhEmi','dEmi'])
-      const {data:created,error}=await supabase.from('compras_ml_notas').insert({compra_id:selected.id,numero_nf:nf,serie_nf:val(['ide > serie','serie'])||null,data_emissao:em?em.slice(0,10):null,chave_acesso:doc.querySelector('infNFe')?.getAttribute('Id')?.replace(/^NFe/,'')||null,cnpj_emitente:val(['emit > CNPJ','CNPJ']).replace(/\D/g,'').slice(0,14)||null,razao_social_emitente:val(['emit > xNome','xNome'])||null,valor_produtos:Number(val(['ICMSTot > vProd','vProd'])||0),valor_frete:Number(val(['ICMSTot > vFrete','vFrete'])||0),valor_desconto:Number(val(['ICMSTot > vDesc','vDesc'])||0),valor_ipi:Number(val(['ICMSTot > vIPI','vIPI'])||0),valor_outras_despesas:Number(val(['ICMSTot > vOutro','vOutro'])||0),valor_total:total,status_nf:'IMPORTADA_XML',observacao:'Importada de XML'})
+      const {data:created,error}=await supabase.from('compras_ml_notas').insert({compra_id:selected.id,numero_nf:nf,serie_nf:val(['ide > serie','serie'])||null,data_emissao:em?em.slice(0,10):null,chave_acesso:doc.querySelector('infNFe')?.getAttribute('Id')?.replace(/^NFe/,'')||null,cnpj_emitente:val(['emit > CNPJ','CNPJ']).replace(/\D/g,'').slice(0,14)||null,razao_social_emitente:val(['emit > xNome','xNome'])||null,valor_produtos:Number(val(['ICMSTot > vProd','vProd'])||0),valor_frete:Number(val(['ICMSTot > vFrete','vFrete'])||0),valor_desconto:Number(val(['ICMSTot > vDesc','vDesc'])||0),valor_ipi:Number(val(['ICMSTot > vIPI','vIPI'])||0),valor_outras_despesas:Number(val(['ICMSTot > vOutro','vOutro'])||0),valor_total:total,status_nf:'IMPORTADA_XML',observacao:'Importada de XML'}).select('id').single()
       if(error)throw error
-      const id=(created as any[]|null)?.[0]?.id
+      const id=created?.id
       if(id)for(const [idx,det] of Array.from(doc.querySelectorAll('det')).entries()){
         const get=(name:string)=>det.querySelector('prod > '+name)?.textContent?.trim()??''
         const qty=Number(get('qCom')||0),unit=Number(get('vUnCom')||0)
