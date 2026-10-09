@@ -94,7 +94,7 @@ export function NotaFiscalLancamento({ rows, canEdit, initialCompraId, embedded 
     if (!id) { setNotas([]); return }
     const { data, error } = await supabase
       .from('compras_ml_notas')
-      .select('id,numero_nf,serie_nf,data_emissao,valor_total')
+      .select('id,compra_id,numero_nf,serie_nf,chave_acesso,data_emissao,cnpj_emitente,razao_social_emitente,valor_produtos,valor_frete,valor_desconto,valor_ipi,valor_outras_despesas,valor_total,status_nf,observacao')
       .eq('compra_id', id)
       .order('data_emissao', { ascending: true })
     if (error) setMessage(`Não foi possível consultar as NF(s): ${error.message}`)
