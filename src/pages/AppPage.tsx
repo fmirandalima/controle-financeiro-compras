@@ -121,7 +121,7 @@ function PatrimonioPanel({ profile, empresas, canCreate, canEdit }: { profile: P
     if (!form || !form.empresa_id || !form.data_compra || !form.descricao.trim()) { setMessage('Preencha empresa, data da compra e descrição do bem.'); return }
     const qty=Number(form.quantidade), unit=Number(form.valor_unitario), total=Number(form.valor_compra)
     if(!Number.isFinite(qty)||qty<=0||!Number.isFinite(unit)||unit<0||!Number.isFinite(total)||total<0){setMessage('Quantidade e valores precisam ser válidos.');return}
-    if(!form.id && form.tipo_identificacao==='AUTOMATICO' && !form.numero_nota.trim()){setMessage('Para gerar código automático, informe o número da NF.');return}
+    if(!form.id && form.tipo_identificacao==='AUTOMATICO' && !form.numero_nota.trim()){setMessage('Para gerar código automático, informe o número da NF.');return} if(!form.id && form.tipo_identificacao==='MANUAL' && !form.codigo_patrimonio.trim()){setMessage('Informe o código patrimonial manual.');return}
     setBusy(true);setMessage('')
     const common = { empresa_id:form.empresa_id, data_compra:form.data_compra, numero_nota:form.numero_nota.trim()||null, descricao:form.descricao.trim(), marca:form.marca.trim()||null, modelo:form.modelo.trim()||null, numero_serie:form.numero_serie.trim()||null, quantidade:qty, valor_unitario:unit, valor_compra:total, status_ativo:form.status_ativo, observacao:form.observacao.trim()||null, updated_by:profile.id }
     const result = form.id
