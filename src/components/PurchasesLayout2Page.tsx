@@ -107,6 +107,7 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
   const [message,setMessage]=useState('')
   const [view,setView]=useState<{compra:Compra,notas:Nota[],itens:Item[]}|null>(null)
   const [editRow,setEditRow]=useState<Compra|null>(null)
+  const [isCreating,setIsCreating]=useState(false)
   const [form,setForm]=useState({nro_requisicao:'',data_compra:'',ml_order_id:'',valor:'',nro_oc:'',cartao:true,ultimos_digitos_cartao:'',observacao:''})
 
   async function load(){
@@ -146,7 +147,16 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
     setBusy(false)
   }
 
+  function startNew(){
+    if(!canEdit) return
+    setEditRow(null)
+    setIsCreating(true)
+    setForm({nro_requisicao:'',data_compra:new Date().toISOString().slice(0,10),ml_order_id:'',valor:'',nro_oc:'',cartao:true,ultimos_digitos_cartao:'',observacao:''})
+    setMessage('')
+  }
+
   function startEdit(c:Compra){
+    setIsCreating(false)
     setEditRow(c)
     setForm({
       nro_requisicao:String(c.nro_requisicao??''),
@@ -161,24 +171,32 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
   }
 
   async function saveEdit(){
-    if(!editRow) return
+    if(!editRow && !isCreating) return
     const valor=Number(form.valor.replace(/\./g,'').replace(',','.'))
     const req=Number(form.nro_requisicao)
     if(!Number.isInteger(req)||req<0||!form.data_compra||!Number.isFinite(valor)||valor<0){setMessage('Preencha requisição, data e valor corretamente.');return}
+    if(isCreating&&!empresa){setMessage('Selecione uma empresa antes de criar o lançamento.');return}
     setBusy(true)
-    const {error}=await supabase.rpc('atualizar_lancamento_compra',{
-      p_id:editRow.id,p_empresa_id:editRow.empresa_id,p_nro_requisicao:req,p_data_compra:form.data_compra,
-      p_ml_order_id:form.ml_order_id.trim(),p_valor_operacao_cartao:valor,p_nro_oc:form.nro_oc?Number(form.nro_oc):null,
+    const rpcName=isCreating?'criar_lancamento_compra':'atualizar_lancamento_compra'
+    const args=isCreating?{
+      p_empresa_id:empresa,p_nro_requisicao:req,p_data_compra:form.data_compra,
+      p_ml_order_id:form.ml_order_id.trim()||null,p_valor_operacao_cartao:valor,p_nro_oc:form.nro_oc?Number(form.nro_oc):null,
       p_ultimos_digitos_cartao:form.ultimos_digitos_cartao||null,p_observacao:form.observacao||null,
-      p_status_erp:Boolean(editRow.status_erp),p_cartao:form.cartao,p_status_entrega:'PENDENTE',p_oc_cancelada:false,p_cidade_uf_destino:null
-    })
-    if(error) setMessage('Não foi possível salvar a edição: '+error.message)
-    else {setMessage('Lançamento atualizado.');setEditRow(null);await load()}
+      p_status_erp:false,p_cartao:form.cartao,p_status_entrega:'PENDENTE',p_oc_cancelada:false,p_cidade_uf_destino:null
+    }:{
+      p_id:editRow!.id,p_empresa_id:editRow!.empresa_id,p_nro_requisicao:req,p_data_compra:form.data_compra,
+      p_ml_order_id:form.ml_order_id.trim()||null,p_valor_operacao_cartao:valor,p_nro_oc:form.nro_oc?Number(form.nro_oc):null,
+      p_ultimos_digitos_cartao:form.ultimos_digitos_cartao||null,p_observacao:form.observacao||null,
+      p_status_erp:Boolean(editRow!.status_erp),p_cartao:form.cartao,p_status_entrega:'PENDENTE',p_oc_cancelada:false,p_cidade_uf_destino:null
+    }
+    const {error}=await supabase.rpc(rpcName,args)
+    if(error) setMessage('Não foi possível salvar: '+error.message)
+    else {setMessage(isCreating?'Lançamento criado.':'Lançamento atualizado.');setEditRow(null);setIsCreating(false);await load()}
     setBusy(false)
   }
 
   return <section className="panel purchases-panel">
-    <div className="panel-head"><div><h2>Compras — Layout 2.0</h2><p className="muted">Cada NF vinculada aparece como um lançamento fracionado. O pagamento do cartão permanece no pedido Mercado Livre.</p></div></div>
+    <div className="panel-head"><div><h2>Compras — Layout 2.0</h2><p className="muted">Cada NF vinculada aparece como um lançamento fracionado. O pagamento do cartão permanece no pedido Mercado Livre.</p></div>{canEdit&&<button className="primary" onClick={startNew}>Novo lançamento</button>}</div>
     {message&&<div className="notice">{message}</div>}
     <div className="filters purchase-filters">
       <select value={empresa} onChange={e=>setEmpresa(e.target.value)}><option value="">Todas as empresas</option>{empresas.map(e=><option key={e.id} value={String(e.id)}>{e.nome}</option>)}</select>
@@ -189,19 +207,19 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
 
     <div className="table-wrap"><table className="data-table"><thead><tr><th>Data</th><th>Pedido ML</th><th>NF</th><th>Valor NF</th><th>Pago cartão</th><th>Diferença</th><th>Retornos ML</th><th>Status</th><th></th></tr></thead>
       <tbody>
-        {visible.map(r=><tr key={r.lancamento_id}><td>{dateBR(r.data_lancamento)}</td><td>{r.ml_order_id??'—'}</td><td><b>{r.numero_nf??'—'}</b>{r.serie_nf?'/'+r.serie_nf:''}</td><td>{brl(r.valor_lancamento)}</td><td>{brl(r.valor_operacao_cartao)}</td><td>{r.diferenca_cartao_nf!=null?brl(r.diferenca_cartao_nf):'—'}</td><td title={r.ml_resumo_financeiro??''}>{r.ml_resumo_financeiro??'—'}</td><td><span className="tag">{r.status_conferencia}</span></td><td><button className="mini" onClick={()=>void openCompra(r.compra_id)}>Visualizar</button></td></tr>)}
+        {visible.map((r,idx)=><tr key={r.lancamento_id}><td>{dateBR(r.data_lancamento)}</td><td>{r.ml_order_id??'—'}</td><td><b>{r.numero_nf??'—'}</b>{r.serie_nf?'/'+r.serie_nf:''}</td><td>{brl(r.valor_lancamento)}</td><td>{visible.findIndex(x=>x.compra_id===r.compra_id)===idx?brl(r.valor_operacao_cartao):'—'}</td><td>{visible.findIndex(x=>x.compra_id===r.compra_id)===idx&&r.diferenca_cartao_nf!=null?brl(r.diferenca_cartao_nf):'—'}</td><td title={r.ml_resumo_financeiro??''}>{r.ml_resumo_financeiro??'—'}</td><td><span className="tag">{r.status_conferencia}</span></td><td><button className="mini" onClick={()=>void openCompra(r.compra_id)}>Visualizar</button></td></tr>)}
         {pending.map(c=><tr key={'p-'+c.id}><td>{dateBR(c.data_compra)}</td><td>{c.ml_order_id??'—'}</td><td><span className="warn">NF pendente</span></td><td>{brl(c.valor_nf_total)}</td><td>{brl(c.valor_operacao_cartao)}</td><td>{c.diferenca_cartao_nf!=null?brl(c.diferenca_cartao_nf):'—'}</td><td title={c.ml_resumo_financeiro??''}>{c.ml_resumo_financeiro??'—'}</td><td><span className="tag">{c.status_conferencia}</span></td><td>{canEdit&&<button className="mini" onClick={()=>startEdit(c)}>Editar</button>}<button className="mini" onClick={()=>void openCompra(c.id)}>Visualizar</button></td></tr>)}
         {!visible.length&&!pending.length&&<tr><td colSpan={9}>Nenhum lançamento encontrado.</td></tr>}
       </tbody></table></div>
 
-    {editRow&&<div className="import-box"><h3>Editar lançamento da compra</h3><div className="form-grid">
-      <label>Nº Requisição<input maxLength={7} value={form.nro_requisicao} onChange={e=>setForm(f=>({...f,nro_requisicao:e.target.value.replace(/\D/g,'').slice(0,7)}))}/></label>
+    {(editRow||isCreating)&&<div className="import-box"><h3>{isCreating?'Novo lançamento manual':'Editar lançamento da compra'}</h3><div className="form-grid">
+      {isCreating&&<label>Empresa<select value={empresa} onChange={e=>setEmpresa(e.target.value)}><option value="">Selecione...</option>{empresas.map(e=><option key={e.id} value={String(e.id)}>{e.codigo_empresa} — {e.nome}</option>)}</select></label>}<label>Nº Requisição<input maxLength={7} value={form.nro_requisicao} onChange={e=>setForm(f=>({...f,nro_requisicao:e.target.value.replace(/\D/g,'').slice(0,7)}))}/></label>
       <label>Data<input type="date" value={form.data_compra} onChange={e=>setForm(f=>({...f,data_compra:e.target.value}))}/></label>
       <label>Pedido ML<input value={form.ml_order_id} onChange={e=>setForm(f=>({...f,ml_order_id:e.target.value}))}/></label>
       <label>Valor pago no cartão<input inputMode="decimal" value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/></label>
       <label>Final cartão<input maxLength={4} value={form.ultimos_digitos_cartao} onChange={e=>setForm(f=>({...f,ultimos_digitos_cartao:e.target.value.replace(/\D/g,'').slice(0,4)}))}/></label>
       <label>Observação (120)<input maxLength={120} value={form.observacao} onChange={e=>setForm(f=>({...f,observacao:e.target.value.slice(0,120)}))}/></label>
-    </div><div className="actions"><button className="primary" onClick={()=>void saveEdit()} disabled={busy}>Salvar</button><button onClick={()=>setEditRow(null)}>Cancelar</button></div></div>}
+    </div><div className="actions"><button className="primary" onClick={()=>void saveEdit()} disabled={busy}>{isCreating?'Criar lançamento':'Salvar'}</button><button onClick={()=>{setEditRow(null);setIsCreating(false)}}>Cancelar</button></div></div>}
 
     {view&&<div className="import-box"><div className="panel-head"><div><h3>Visualização do lançamento</h3><p className="muted">Pedido Mercado Livre {view.compra.ml_order_id??'—'} · Cartão {brl(view.compra.valor_operacao_cartao)}</p></div><button onClick={()=>setView(null)}>Fechar</button></div>
       <div className="form-grid">
