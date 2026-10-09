@@ -72,9 +72,6 @@ export function NotaFiscalLancamento({ rows, canEdit, initialCompraId, embedded 
   const [items, setItems] = useState<any[]>([])
   const [itemForm, setItemForm] = useState<any>(null)
   const [patrimonioForm, setPatrimonioForm] = useState({itemId:'',tipo:'AUTOMATICO',codigo:''})
-  const [items, setItems] = useState<any[]>([])
-  const [itemForm, setItemForm] = useState<any>(null)
-  const [patrimonioForm, setPatrimonioForm] = useState({itemId:'',tipo:'AUTOMATICO',codigo:''})
 
   const selected = useMemo(() => rows.find(r => r.id === compraId) ?? null, [rows, compraId])
   useEffect(() => { if (initialCompraId) setCompraId(initialCompraId) }, [initialCompraId])
@@ -82,6 +79,16 @@ export function NotaFiscalLancamento({ rows, canEdit, initialCompraId, embedded 
   const cardTotal = Number(selected?.valor_operacao_cartao || 0)
   const projected = nfTotal + (Number.isFinite(parseNumber(valor)) ? parseNumber(valor) : 0)
   const difference = projected - cardTotal
+
+  function editNota(n: Nota) {
+    setNumero(n.numero_nf??'')
+    setSerie(n.serie_nf??'')
+    setData(dateOnly(n.data_emissao))
+    setValor(String(n.valor_total??'').replace('.',','))
+    setObservacao(n.observacao??'')
+    setEditingNotaId(n.id)
+    setMessage('Editando NF '+(n.numero_nf??''))
+  }
 
   async function loadNotas(id: string) {
     if (!id) { setNotas([]); return }
@@ -227,13 +234,13 @@ export function NotaFiscalLancamento({ rows, canEdit, initialCompraId, embedded 
     <h3>{embedded ? 'Notas fiscais e itens da compra' : 'Lançamento de NF — vinculado à compra/cartão'}</h3>
     {!embedded && <p className="muted">A NF é vinculada à compra selecionada. Data e valor da NF são independentes do cartão.</p>}
 
-    {!embedded && <div className="form-grid">
-      <label>Compra/cartão *
+    <div className="form-grid">
+      {!embedded && <label>Compra/cartão *
         <select value={compraId} onChange={e => { setCompraId(e.target.value); setMessage('') }}>
           <option value="">Selecione a compra</option>
           {rows.map(r => <option key={r.id} value={r.id}>{r.empresa_apelido ?? 'Empresa'} · {dateOnly(r.data_compra).split('-').reverse().join('/')} · {brl(r.valor_operacao_cartao)} · Req. {r.id.slice(0, 8)}</option>)}
         </select>
-      </label>
+      </label>}
       <label>Número da NF *<input value={numero} onChange={e => setNumero(e.target.value)} /></label>
       <label>Série<input value={serie} onChange={e => setSerie(e.target.value)} /></label>
       <label>Data de emissão da NF *<input type="date" value={data} onChange={e => setData(e.target.value)} /></label>
