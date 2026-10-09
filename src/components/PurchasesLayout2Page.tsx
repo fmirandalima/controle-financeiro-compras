@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Empresa, Perfil } from '../types'
 import { brl } from '../lib/format'
+import { NotaFiscalLancamento } from './NotaFiscalLancamento'
 
 type Props = { profile: Perfil; empresas: Empresa[] }
 
@@ -139,7 +140,7 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
     const [cr,nr,ir]=await Promise.all([
       supabase.from('compras_ml').select('id,empresa_id,nro_requisicao,nro_oc,data_compra,ml_order_id,ml_pack_id,valor_operacao_cartao,valor_nf_total,diferenca_cartao_nf,status_conferencia,cartao,ultimos_digitos_cartao,data_estorno,valor_frete,valor_desconto,ml_coupon_amount,ml_discount_amount,ml_resumo_financeiro,observacao,ml_status,ml_status_detail,ml_tags,mercado_entregue').eq('id',compraId).single(),
       supabase.from('compras_ml_notas').select('id,numero_nf,serie_nf,data_emissao,valor_total,observacao').eq('compra_id',compraId).order('data_emissao',{ascending:true}),
-      supabase.from('compras_ml_nf_itens').select('id,nota_fiscal_id,numero_item,descricao,quantidade,unidade,valor_unitario,valor_produtos').in('nota_fiscal_id',(await supabase.from('compras_ml_notas').select('id').eq('compra_id',compraId)).data?.map(n=>n.id)??[])
+      supabase.from('compras_ml_nf_itens').select('id,nota_fiscal_id,numero_item,codigo_produto,descricao,quantidade,unidade,valor_unitario,valor_produtos,valor_frete,valor_desconto,valor_ipi,imobilizado').in('nota_fiscal_id',(await supabase.from('compras_ml_notas').select('id').eq('compra_id',compraId)).data?.map(n=>n.id)??[])
     ])
     if(cr.error||nr.error||ir.error){setMessage('Não foi possível abrir o lançamento: '+(cr.error||nr.error||ir.error)?.message);setBusy(false);return}
     const compra=cr.data as Compra
@@ -232,6 +233,7 @@ export function PurchasesLayout2Page({ profile, empresas }: Props) {
       </div>
       {view.compra.diferenca_cartao_nf!=null&&Math.abs(Number(view.compra.diferenca_cartao_nf))>0.01&&<div className="notice"><b>Conferência:</b> {Number(view.compra.diferenca_cartao_nf)<0?'Soma das notas/itens é menor':'Soma das notas/itens é maior'} que o valor pago no cartão em {brl(Math.abs(Number(view.compra.diferenca_cartao_nf)))}. {view.notas.map(n=>n.numero_nf).filter(Boolean).join(', ')||'NF(s) ainda não identificadas'}.</div>}
       {view.compra.observacao&&<div className="notice"><b>Observação da compra:</b> {view.compra.observacao}</div>}
+      {canEdit&&<NotaFiscalLancamento rows={[{id:view.compra.id,empresa_apelido:view.compra.empresa_id?empresas.find(e=>String(e.id)===String(view.compra.empresa_id))?.nome??null:null,data_compra:view.compra.data_compra,valor_operacao_cartao:view.compra.valor_operacao_cartao,valor_nf_total:view.compra.valor_nf_total,status_conferencia:view.compra.status_conferencia,numeros_nf:view.notas.map(n=>n.numero_nf).filter(Boolean).join(', ')}]} canEdit={canEdit}/>}
       <h4>DOCUMENTO FISCAL</h4>
       <div className="table-wrap"><table className="data-table"><thead><tr><th>NF</th><th>Série</th><th>Emissão</th><th>Valor</th><th>Itens</th><th>Observação</th></tr></thead><tbody>{view.notas.map(n=>{const its=view.itens.filter(i=>i.nota_fiscal_id===n.id);return <tr key={n.id}><td><b>{n.numero_nf??'—'}</b></td><td>{n.serie_nf??'—'}</td><td>{dateBR(n.data_emissao)}</td><td>{brl(n.valor_total)}</td><td>{its.length?its.map(i=><div key={i.id}>{i.descricao} · {i.quantidade} × {brl(i.valor_unitario)} = {brl(i.valor_produtos)}</div>):'—'}</td><td>{n.observacao || '—'}</td></tr>})}{!view.notas.length&&<tr><td colSpan={6}>Nenhuma nota fiscal vinculada a esta compra.</td></tr>}</tbody></table></div>
       <div className="notice"><b>Resumo:</b> {view.notas.length} NF(s) · soma {brl(view.compra.valor_nf_total)} · cartão {brl(view.compra.valor_operacao_cartao)}.</div>
