@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { cadastrarUsuario, signIn, solicitarAcessoGestor, verificarUsername } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () => void }) {
   const [username, setUsername] = useState('')
@@ -18,6 +19,9 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
   const [cadastroOk, setCadastroOk] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [requestSent, setRequestSent] = useState(false)
+  const [modoRecuperacao, setModoRecuperacao] = useState(false)
+  const [emailRecuperacao, setEmailRecuperacao] = useState('')
+  const [recuperacaoEnviada, setRecuperacaoEnviada] = useState(false)
 
   const emailLogin = useMemo(() => email.trim().split('@')[0].toLowerCase(), [email])
 
@@ -82,6 +86,23 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     setBusy(false)
   }
 
+  async function recuperarSenha(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    const normalizedEmail = emailRecuperacao.trim().toLowerCase()
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Informe um e-mail válido.')
+      setBusy(false)
+      return
+    }
+    const { data, error } = await supabase.functions.invoke('password-recovery', { body: { email: normalizedEmail } })
+    if (error) setError('Não foi possível solicitar a recuperação. Verifique a conexão ou contate o suporte.')
+    else if (data?.error) setError(String(data.error))
+    else setRecuperacaoEnviada(true)
+    setBusy(false)
+  }
+
   async function requestAccess(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -91,6 +112,14 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     else setRequestSent(true)
     setBusy(false)
   }
+
+  if (recuperacaoEnviada) return (
+    <main className="auth-shell"><section className="auth-card">
+      <div className="brand-mark">CF</div><h1>SIGCF 2.0</h1><h2>Verifique seu e-mail</h2>
+      <p className="muted">Se a solicitação foi processada, você receberá uma mensagem com o link para redefinir sua senha. Confira também a pasta de spam.</p>
+      <button className="primary" onClick={() => { setRecuperacaoEnviada(false); setModoRecuperacao(false); setEmailRecuperacao(''); setError('') }}>Voltar ao login</button>
+    </section></main>
+  )
 
   if (requestSent) return (
     <main className="auth-shell">
@@ -132,7 +161,16 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
           </label>
         )}
 
-        {modoCadastro ? (
+        {modoRecuperacao ? (
+          <form onSubmit={recuperarSenha}>
+            <h3>Recuperar senha</h3>
+            <p className="muted">Informe o e-mail cadastrado para receber o link de redefinição.</p>
+            <label>E-mail cadastrado<input type="email" value={emailRecuperacao} onChange={e => setEmailRecuperacao(e.target.value)} autoComplete="email" required /></label>
+            {error && <div className="error">{error}</div>}
+            <button className="primary" disabled={busy}>{busy ? 'Solicitando...' : 'Enviar link de recuperação'}</button>
+            <button type="button" className="secondary" onClick={() => { setModoRecuperacao(false); setError('') }}>Voltar ao login</button>
+          </form>
+        ) : modoCadastro ? (
           <form onSubmit={submitCadastro}>
             <h3>Novo usuário</h3>
             <label>Nome<input value={nome} onChange={e => setNome(e.target.value)} required /></label>
@@ -162,13 +200,47 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
             <label>Senha<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" required /></label>
             {error && <div className="error">{error}</div>}
             <button className="primary" disabled={busy}>{busy ? 'Entrando...' : 'Entrar'}</button>
+            <button type="button" className="secondary" onClick={() => { setModoRecuperacao(true); setError('') }}>Esqueci minha senha</button>
             <button type="button" className="secondary" onClick={abrirCadastro}>Novo usuário</button>
           </form>
         )}
 
-        {!modoCadastro && <button className="secondary" onClick={onBack}>Voltar</button>}
+        {!modoCadastro && !modoRecuperacao && <button className="secondary" onClick={onBack}>Voltar</button>}
         <p className="tiny">FATURAMENTO alimenta a base · COMPRAS consulta, lança e edita · FINANCEIRO audita · GESTOR consulta.</p>
       </section>
     </main>
   )
+}
+
+ 
+export function PasswordReset({ onDone }: { onDone: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (password.length < 8) { setError('A nova senha deve ter no mínimo 8 caracteres.'); return }
+    if (password !== confirm) { setError('As senhas não conferem.'); return }
+    setBusy(true)
+    const { data, error: invokeError } = await supabase.functions.invoke('change-own-password', { body: { password } })
+    if (invokeError || data?.error) {
+      setError(data?.error || 'Não foi possível redefinir a senha. Abra novamente o link recebido por e-mail ou contate o suporte.')
+      setBusy(false)
+      return
+    }
+    await supabase.auth.signOut()
+    setBusy(false)
+    onDone()
+  }
+  return <main className="auth-shell"><section className="auth-card"><div className="brand-mark">CF</div><h1>SIGCF 2.0</h1><h2>Definir nova senha</h2>
+    <p className="muted">Escolha uma senha com pelo menos 8 caracteres.</p>
+    <form onSubmit={submit}>
+      <label>Nova senha<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>
+      <label>Confirmar nova senha<input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" required /></label>
+      {error && <div className="error">{error}</div>}
+      <button className="primary" disabled={busy}>{busy ? 'Salvando...' : 'Redefinir senha'}</button>
+    </form>
+  </section></main>
 }
