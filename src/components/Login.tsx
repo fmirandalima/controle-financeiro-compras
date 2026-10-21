@@ -90,7 +90,7 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     e.preventDefault()
     setBusy(true); setError(''); setRecuperacaoEnviada(false)
     const emailAddress = emailRecuperacao.trim().toLowerCase()
-    const { error } = await supabase.auth.resetPasswordForEmail(emailAddress, { redirectTo: window.location.origin })
+    const { error } = await supabase.auth.resetPasswordForEmail(emailAddress, { redirectTo: 'https://controle-financeiro-compras-96rg-fernando-lima1.vercel.app' })
     if (error) setError('Não foi possível enviar o link de recuperação. Confira o e-mail e tente novamente.')
     else setRecuperacaoEnviada(true)
     setBusy(false)
