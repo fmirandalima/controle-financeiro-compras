@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase'
-import { loadProfile } from './lib/auth'
+import { supabase } from './src/lib/supabase'
+import { loadProfile } from './src/lib/auth'
 import type { Perfil } from './types'
-import { Login } from './components/Login'
-import { AppPage } from './pages/AppPage'
+import { Login } from './src/components/Login'
+import { AppPage } from './src/pages/AppPage'
 import P2PPage from './P2PPage'
 import './styles.css'
 
