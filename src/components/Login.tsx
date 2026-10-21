@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { cadastrarUsuario, signIn, solicitarAcessoGestor, verificarUsername } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () => void }) {
   const [username, setUsername] = useState('')
@@ -18,6 +19,9 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
   const [cadastroOk, setCadastroOk] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [requestSent, setRequestSent] = useState(false)
+  const [modoRecuperacao, setModoRecuperacao] = useState(false)
+  const [emailRecuperacao, setEmailRecuperacao] = useState('')
+  const [recuperacaoEnviada, setRecuperacaoEnviada] = useState(false)
 
   const emailLogin = useMemo(() => email.trim().split('@')[0].toLowerCase(), [email])
 
@@ -82,6 +86,16 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
     setBusy(false)
   }
 
+  async function requestPasswordReset(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true); setError(''); setRecuperacaoEnviada(false)
+    const emailAddress = emailRecuperacao.trim().toLowerCase()
+    const { error } = await supabase.auth.resetPasswordForEmail(emailAddress, { redirectTo: window.location.origin })
+    if (error) setError('Não foi possível enviar o link de recuperação. Confira o e-mail e tente novamente.')
+    else setRecuperacaoEnviada(true)
+    setBusy(false)
+  }
+
   async function requestAccess(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -122,14 +136,24 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
         <h1>Controle Financeiro</h1>
         <p className="muted">Conta Simples × Sankhya</p>
 
-        {!modoCadastro && (
+        {!modoCadastro && !modoRecuperacao && (
           <label className="checkbox-line">
             <input type="checkbox" checked={souGestor} onChange={e => { setSouGestor(e.target.checked); setError('') }} />
             <span>Sou gestor</span>
           </label>
         )}
 
-        {modoCadastro ? (
+        {modoRecuperacao ? (
+          <form onSubmit={requestPasswordReset}>
+            <h3>Recuperar senha</h3>
+            <p className="muted">Informe o e-mail cadastrado. Enviaremos um link para redefinir a senha neste ambiente.</p>
+            <label>E-mail cadastrado<input type="email" autoComplete="email" value={emailRecuperacao} onChange={e => setEmailRecuperacao(e.target.value)} required /></label>
+            {recuperacaoEnviada && <div className="success">Se o e-mail estiver cadastrado, você receberá as instruções. Confira também spam e lixo eletrônico.</div>}
+            {error && <div className="error">{error}</div>}
+            <button className="primary" disabled={busy}>{busy ? 'Enviando...' : 'Enviar link de recuperação'}</button>
+            <button type="button" className="secondary" onClick={() => { setModoRecuperacao(false); setError(''); setRecuperacaoEnviada(false) }}>Voltar ao login</button>
+          </form>
+        ) : modoCadastro ? (
           <form onSubmit={submitCadastro}>
             <h3>Novo usuário</h3>
             <label>Nome<input value={nome} onChange={e => setNome(e.target.value)} required /></label>
@@ -163,7 +187,7 @@ export function Login({ onLogged, onBack }: { onLogged: () => void; onBack: () =
           </form>
         )}
 
-        {!modoCadastro && <button className="secondary" onClick={onBack}>Voltar</button>}
+        {!modoCadastro && !modoRecuperacao && <><button className="secondary" onClick={() => { setModoRecuperacao(true); setError('') }}>Esqueci minha senha</button><button className="secondary" onClick={onBack}>Voltar</button></>}
         <p className="tiny">FATURAMENTO alimenta a base · COMPRAS consulta, lança e edita · FINANCEIRO audita · GESTOR consulta.</p>
       </section>
     </main>
