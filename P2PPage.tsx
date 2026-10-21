@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase } from './supabase'
+import { supabase } from './lib/supabase'
 import './p2p.css'
 
 type Status = 'EM_COMPRAS'|'EM_FISCAL'|'EM_FINANCEIRO'|'AGUARDANDO_NF'|'AGUARDANDO_PAGAMENTO'|'CONCLUIDA'|'CANCELADA'
