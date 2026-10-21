@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './src/lib/supabase'
 import { loadProfile } from './src/lib/auth'
-import type { Perfil } from './types'
+import type { Perfil } from './src/types'
 import { Login } from './src/components/Login'
 import P2PPage from './P2PPage'
 import './p2p.css'
