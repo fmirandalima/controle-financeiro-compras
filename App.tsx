@@ -4,6 +4,7 @@ import { loadProfile } from './lib/auth'
 import type { Perfil } from './types'
 import { Login } from './components/Login'
 import { AppPage } from './pages/AppPage'
+import P2PPage from './P2PPage'
 import './styles.css'
 
 function Landing({ onLogin }: { onLogin: () => void }) {
@@ -26,6 +27,7 @@ export default function App() {
   const [profile, setProfile] = useState<Perfil | null>(null)
   const [loading, setLoading] = useState(true)
   const [loginOpen, setLoginOpen] = useState(false)
+  const [p2pMode, setP2pMode] = useState(() => new URLSearchParams(window.location.search).get('module') === 'p2p')
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -50,5 +52,12 @@ export default function App() {
     ? <Login onLogged={() => setLoginOpen(true)} onBack={() => setLoginOpen(false)} />
     : <Landing onLogin={() => setLoginOpen(true)} />
 
-  return <AppPage profile={profile} onLogout={() => supabase.auth.signOut()} />
+  if (p2pMode) return <P2PPage onBack={() => { const url = new URL(window.location.href); url.searchParams.delete('module'); window.history.pushState({}, '', url); setP2pMode(false) }} />
+
+  return <div>
+    <div style={{display:'flex',justifyContent:'flex-end',padding:'10px 24px',background:'#0a192f'}}>
+      <button style={{background:'#f59e0b',color:'#0a192f',fontWeight:700}} onClick={() => { const url = new URL(window.location.href); url.searchParams.set('module','p2p'); window.history.pushState({}, '', url); setP2pMode(true) }}>Abrir SIGCF P2P</button>
+    </div>
+    <AppPage profile={profile} onLogout={() => supabase.auth.signOut()} />
+  </div>
 }
