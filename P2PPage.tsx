@@ -3,12 +3,19 @@ import { supabase } from './lib/supabase'
 import './p2p.css'
 
 type Status = 'EM_COMPRAS'|'EM_FISCAL'|'EM_FINANCEIRO'|'AGUARDANDO_NF'|'AGUARDANDO_PAGAMENTO'|'CONCLUIDA'|'CANCELADA'
+type Formalizacao = 'PENDENTE'|'ENVIADA'|'CONFIRMADA'|'NAO_APLICAVEL'
+type SankhyaStatus = 'PENDENTE'|'LANCADO'|'NAO_APLICAVEL'
 type Pagamento = { nome: string; path: string; enviado_em?: string }
 type Evento = { evento: string; status?: string; status_anterior?: string; status_novo?: string; em: string; usuario_id?: string }
 type Atividade = {
   id: string; numero_requisicao: string; numero_cotacao: string; numero_nf: string | null;
   tem_adiantamento: boolean; status_fluxo: Status; quitacao_confirmada: boolean;
   anexo_nf_path: string | null; comprovantes_pagamento: Pagamento[]; historico_fluxo: Evento[];
+  formalizacao_cliente_status: Formalizacao; formalizacao_cliente_contato: string | null;
+  formalizacao_cliente_referencia: string | null; formalizacao_cliente_observacao: string | null;
+  formalizacao_cliente_em: string | null;
+  sankhya_status: SankhyaStatus; sankhya_numero_documento: string | null;
+  sankhya_observacao: string | null; sankhya_lancado_em: string | null;
   criado_em: string; atualizado_em: string;
 }
 const BUCKET = 'sigcf-p2p-documentos'
@@ -18,6 +25,8 @@ const statusLabels: Record<Status,string> = {
   CONCLUIDA:'Concluída', CANCELADA:'Cancelada'
 }
 const statusChoices = Object.keys(statusLabels) as Status[]
+const formalizacaoLabels: Record<Formalizacao,string> = { PENDENTE:'Pendente', ENVIADA:'Enviada ao cliente', CONFIRMADA:'Confirmada pelo cliente', NAO_APLICAVEL:'Não se aplica' }
+const sankhyaLabels: Record<SankhyaStatus,string> = { PENDENTE:'Pendente de lançamento', LANCADO:'Lançado no Sankhya', NAO_APLICAVEL:'Não se aplica' }
 const allowed = (f: File) => ['application/pdf','image/jpeg','image/png'].includes(f.type) && f.size <= 15*1024*1024
 
 export default function P2PPage({ onBack }: { onBack?: () => void }) {
@@ -109,8 +118,27 @@ export default function P2PPage({ onBack }: { onBack?: () => void }) {
           <div className="p2p-section"><h3>Fluxo de trabalho</h3><label>Status atual<select value={selected.status_fluxo} disabled={saving} onChange={e=>void updateActivity({status_fluxo:e.target.value as Status})}>{statusChoices.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></label><p className="p2p-help">Ao mudar o status, o banco registra automaticamente a movimentação no histórico.</p></div>
           <div className="p2p-section"><h3>Nota fiscal</h3><label>Número da NF<input value={selected.numero_nf??''} onChange={e=>setSelected({...selected,numero_nf:e.target.value})} onBlur={()=>void updateActivity({numero_nf:selected.numero_nf})} placeholder="Informe o número quando disponível"/></label><div className="p2p-file-row">{selected.anexo_nf_path?<><span className="p2p-file-icon">PDF</span><div className="p2p-file-meta"><strong>Nota fiscal anexada</strong><small>{selected.anexo_nf_path.split('/').pop()}</small></div><button onClick={()=>void download(selected.anexo_nf_path!,'nota-fiscal')}>Baixar NF</button></>:<span className="p2p-help">Nenhuma nota fiscal anexada.</span>}<label className="p2p-upload">Anexar NF<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>void uploadFile('nf',e.target.files?.[0])}/></label></div></div>
           <div className="p2p-section"><div className="p2p-card-title"><h3>Comprovantes de pagamento</h3><label className="p2p-upload">＋ Anexar comprovante<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>void uploadFile('pagamento',e.target.files?.[0])}/></label></div>{(selected.comprovantes_pagamento??[]).length===0?<p className="p2p-help">Nenhum comprovante anexado. Cada pagamento parcial pode ter seu próprio arquivo.</p>:<div className="p2p-files">{selected.comprovantes_pagamento.map((p,i)=><div className="p2p-file-row" key={p.path}><span className="p2p-file-icon">DOC</span><div className="p2p-file-meta"><strong>{p.nome||'Comprovante '+(i+1)}</strong><small>{p.enviado_em?new Date(p.enviado_em).toLocaleString('pt-BR'):''}</small></div><button onClick={()=>void download(p.path,p.nome||'comprovante')}>Baixar</button></div>)}</div>}</div>
+          <div className="p2p-section">
+            <h3>Formalização com o cliente</h3>
+            <label>Status da formalização<select value={selected.formalizacao_cliente_status} disabled={saving} onChange={e=>{const value=e.target.value as Formalizacao;void updateActivity({formalizacao_cliente_status:value,formalizacao_cliente_em:['ENVIADA','CONFIRMADA'].includes(value)?selected.formalizacao_cliente_em??new Date().toISOString():null})}}>{Object.entries(formalizacaoLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            <div className="p2p-form-grid">
+              <label>Contato do cliente<input defaultValue={selected.formalizacao_cliente_contato??''} key={selected.id+'-contato-'+(selected.formalizacao_cliente_contato??'')} onBlur={e=>{const value=e.currentTarget.value.trim()||null;if(value!==selected.formalizacao_cliente_contato)void updateActivity({formalizacao_cliente_contato:value})}} placeholder="Nome ou área responsável"/></label>
+              <label>Referência de envio<input defaultValue={selected.formalizacao_cliente_referencia??''} key={selected.id+'-ref-'+(selected.formalizacao_cliente_referencia??'')} onBlur={e=>{const value=e.currentTarget.value.trim()||null;if(value!==selected.formalizacao_cliente_referencia)void updateActivity({formalizacao_cliente_referencia:value})}} placeholder="E-mail, protocolo ou referência"/></label>
+            </div>
+            <label>Observações da formalização<textarea defaultValue={selected.formalizacao_cliente_observacao??''} key={selected.id+'-formalizacao-obs-'+(selected.formalizacao_cliente_observacao??'')} onBlur={e=>{const value=e.currentTarget.value.trim()||null;if(value!==selected.formalizacao_cliente_observacao)void updateActivity({formalizacao_cliente_observacao:value})}} rows={3} placeholder="Registre o que foi comunicado ou combinado com o cliente"/></label>
+            {selected.formalizacao_cliente_em&&<p className="p2p-help">Data registrada: {new Date(selected.formalizacao_cliente_em).toLocaleString('pt-BR')}</p>}
+            <p className="p2p-help">Registro manual, sem envio de e-mail ou integração externa.</p>
+          </div>
+          <div className="p2p-section">
+            <h3>Lançamento no Sankhya</h3>
+            <label>Status do lançamento<select value={selected.sankhya_status} disabled={saving} onChange={e=>{const value=e.target.value as SankhyaStatus;void updateActivity({sankhya_status:value,sankhya_lancado_em:value==='LANCADO'?selected.sankhya_lancado_em??new Date().toISOString():null})}}>{Object.entries(sankhyaLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Número ou referência no Sankhya<input defaultValue={selected.sankhya_numero_documento??''} key={selected.id+'-sankhya-doc-'+(selected.sankhya_numero_documento??'')} onBlur={e=>{const value=e.currentTarget.value.trim()||null;if(value!==selected.sankhya_numero_documento)void updateActivity({sankhya_numero_documento:value})}} placeholder="Nº do lançamento, título ou documento"/></label>
+            <label>Observações do lançamento<textarea defaultValue={selected.sankhya_observacao??''} key={selected.id+'-sankhya-obs-'+(selected.sankhya_observacao??'')} onBlur={e=>{const value=e.currentTarget.value.trim()||null;if(value!==selected.sankhya_observacao)void updateActivity({sankhya_observacao:value})}} rows={3} placeholder="Informações para conferência ou acompanhamento"/></label>
+            {selected.sankhya_lancado_em&&<p className="p2p-help">Data registrada: {new Date(selected.sankhya_lancado_em).toLocaleString('pt-BR')}</p>}
+            <p className="p2p-help">O sistema apenas registra o acompanhamento. O lançamento continua sendo feito manualmente no Sankhya.</p>
+          </div>
           <div className="p2p-section"><h3>Confirmação financeira</h3><label className="p2p-check"><input type="checkbox" checked={selected.quitacao_confirmada} onChange={e=>void updateActivity({quitacao_confirmada:e.target.checked})}/> Confirmo que o pagamento total foi realizado</label><p className="p2p-help">Marque somente após confirmar a quitação total. Pagamentos parciais não encerram a atividade.</p><button className="p2p-primary" disabled={saving||!canComplete||selected.status_fluxo==='CONCLUIDA'} onClick={()=>void updateActivity({status_fluxo:'CONCLUIDA'})}>Concluir atividade</button></div>
-          <div className="p2p-section"><h3>Histórico de movimentações</h3>{(selected.historico_fluxo??[]).length===0?<p className="p2p-help">O histórico será preenchido pelo banco.</p>:<ol className="p2p-timeline">{[...selected.historico_fluxo].reverse().map((ev,i)=><li key={i}><span className="p2p-timeline-dot"/><div><strong>{ev.evento==='CRIADA'?'Atividade criada':ev.status_novo?statusLabels[ev.status_novo as Status]??ev.status_novo:ev.evento}</strong><small>{new Date(ev.em).toLocaleString('pt-BR')}</small>{ev.status_anterior&&<p>{statusLabels[ev.status_anterior as Status]??ev.status_anterior} → {statusLabels[ev.status_novo as Status]??ev.status_novo}</p>}</div></li>)}</ol>}</div>
+          <div className="p2p-section"><h3>Histórico de movimentações</h3>{(selected.historico_fluxo??[]).length===0?<p className="p2p-help">O histórico será preenchido pelo banco.</p>:<ol className="p2p-timeline">{[...selected.historico_fluxo].reverse().map((ev,i)=><li key={i}><span className="p2p-timeline-dot"/><div><strong>{ev.evento==='CRIADA'?'Atividade criada':ev.evento==='FORMALIZACAO_CLIENTE'?'Formalização com cliente: '+(formalizacaoLabels[ev.status_novo as Formalizacao]??ev.status_novo):ev.evento==='SANKHYA'?'Sankhya: '+(sankhyaLabels[ev.status_novo as SankhyaStatus]??ev.status_novo):ev.status_novo?statusLabels[ev.status_novo as Status]??ev.status_novo:ev.evento}</strong><small>{new Date(ev.em).toLocaleString('pt-BR')}</small>{ev.status_anterior&&<p>{statusLabels[ev.status_anterior as Status]??ev.status_anterior} → {statusLabels[ev.status_novo as Status]??ev.status_novo}</p>}</div></li>)}</ol>}</div>
         </>}</section>
       </div>
       <footer className="p2p-footer">SIGCF P2P · Módulo independente · Sem integração externa</footer>
