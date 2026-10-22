@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './p2p.css'
 
-type Status = 'EM_COMPRAS'|'EM_FISCAL'|'EM_FINANCEIRO'|'AGUARDANDO_NF'|'AGUARDANDO_PAGAMENTO'|'CONCLUIDA'|'CANCELADA'
+type Status = 'ABERTA'|'EM_COMPRAS'|'EM_FISCAL'|'EM_FINANCEIRO'|'AGUARDANDO_NF'|'AGUARDANDO_PAGAMENTO'|'CONCLUIDA'|'CANCELADA'
 type Formalizacao = 'PENDENTE'|'ENVIADA'|'CONFIRMADA'|'NAO_APLICAVEL'
 type SankhyaStatus = 'PENDENTE'|'LANCADO'|'NAO_APLICAVEL'
 type Pagamento = { nome: string; path: string; enviado_em?: string }
@@ -20,7 +20,7 @@ type Atividade = {
 }
 const BUCKET = 'sigcf-p2p-documentos'
 const statusLabels: Record<Status,string> = {
-  EM_COMPRAS:'Em Compras', EM_FISCAL:'Em Fiscal', EM_FINANCEIRO:'Em Financeiro',
+  ABERTA:'Aberta', EM_COMPRAS:'Em Compras', EM_FISCAL:'Em Fiscal', EM_FINANCEIRO:'Em Financeiro',
   AGUARDANDO_NF:'Aguardando NF', AGUARDANDO_PAGAMENTO:'Aguardando pagamento',
   CONCLUIDA:'Concluída', CANCELADA:'Cancelada'
 }
@@ -54,19 +54,19 @@ export default function P2PPage({ onBack }: { onBack?: () => void }) {
 
   const filtered = useMemo(()=>rows.filter(r => {
     const q=query.trim().toLowerCase()
-    const matches=!q || [r.numero_requisicao,r.numero_cotacao,r.numero_nf ?? ''].some(v=>v.toLowerCase().includes(q))
+    const matches=!q || [r.numero_requisicao,r.numero_cotacao ?? '',r.numero_nf ?? ''].some(v=>v.toLowerCase().includes(q))
     return matches && (statusFilter==='TODOS' || r.status_fluxo===statusFilter)
   }),[rows,query,statusFilter])
 
   async function createActivity(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError(''); setNotice('')
     const { data, error } = await supabase.from('p2p_atividades').insert({
-      numero_requisicao:req.trim(), numero_cotacao:cot.trim(), tem_adiantamento:adiantamento,
-      status_fluxo:'EM_COMPRAS'
+      numero_requisicao:req.trim(), numero_cotacao:cot.trim() || null, tem_adiantamento:adiantamento,
+      status_fluxo:'ABERTA'
     }).select('*').single()
     setSaving(false)
     if(error){setError('Falha ao criar atividade: '+error.message);return}
-    setRows(prev=>[data as Atividade,...prev]); setSelected(data as Atividade); setReq('');setCot('');setAdiantamento(false);setCreating(false);setNotice('Atividade criada.')
+    setRows(prev=>[data as Atividade,...prev]); setSelected(data as Atividade); setReq('');setCot('');setAdiantamento(false);setCreating(false);setNotice('Atividade criada. A OC poderá ser informada antes de avançar para Compras.')
   }
 
   async function updateActivity(patch: Partial<Atividade>) {
@@ -109,13 +109,13 @@ export default function P2PPage({ onBack }: { onBack?: () => void }) {
       <div className="p2p-heading"><div><p className="p2p-eyebrow">CENTRAL DE ATIVIDADES</p><h1>Compras, documentos e pagamentos</h1><p className="p2p-subtitle">Reúna o status, a nota fiscal, os comprovantes e o histórico em um único lugar.</p></div><button className="p2p-primary" onClick={()=>{setCreating(v=>!v);setSelected(null)}}>＋ Nova atividade</button></div>
       <div className="p2p-stats"><article><span>Total de atividades</span><strong>{rows.length}</strong></article><article><span>Em andamento</span><strong>{rows.filter(r=>!['CONCLUIDA','CANCELADA'].includes(r.status_fluxo)).length}</strong></article><article><span>Aguardando pagamento</span><strong>{rows.filter(r=>r.status_fluxo==='AGUARDANDO_PAGAMENTO'||r.status_fluxo==='EM_FINANCEIRO').length}</strong></article><article><span>Concluídas</span><strong>{rows.filter(r=>r.status_fluxo==='CONCLUIDA').length}</strong></article></div>
       {error&&<div className="p2p-alert error">{error}</div>}{notice&&<div className="p2p-alert success">{notice}</div>}
-      {creating&&<form className="p2p-card p2p-create" onSubmit={createActivity}><div className="p2p-card-title"><div><h2>Nova atividade</h2><p>Informe apenas os números de referência necessários.</p></div><button type="button" onClick={()=>setCreating(false)}>Cancelar</button></div><div className="p2p-form-grid"><label>Nº da requisição<input required value={req} onChange={e=>setReq(e.target.value)} /></label><label>Nº da cotação<input required value={cot} onChange={e=>setCot(e.target.value)} /></label></div><label className="p2p-check"><input type="checkbox" checked={adiantamento} onChange={e=>setAdiantamento(e.target.checked)}/> Há adiantamento ou pagamento parcial</label><button className="p2p-primary" disabled={saving}>{saving?'Salvando…':'Criar atividade'}</button></form>}
+      {creating&&<form className="p2p-card p2p-create" onSubmit={createActivity}><div className="p2p-card-title"><div><h2>Nova atividade</h2><p>Informe apenas os números de referência necessários.</p></div><button type="button" onClick={()=>setCreating(false)}>Cancelar</button></div><div className="p2p-form-grid"><label>Nº da requisição<input required value={req} onChange={e=>setReq(e.target.value)} /></label><label>Nº da OC (Ordem de Compra)<input value={cot} onChange={e=>setCot(e.target.value)} placeholder="Opcional na abertura" /></label></div><label className="p2p-check"><input type="checkbox" checked={adiantamento} onChange={e=>setAdiantamento(e.target.checked)}/> Há adiantamento ou pagamento parcial</label><button className="p2p-primary" disabled={saving}>{saving?'Salvando…':'Criar atividade'}</button></form>}
       <div className="p2p-layout">
-        <section className="p2p-card p2p-list"><div className="p2p-card-title"><div><h2>Atividades</h2><p>{filtered.length} registro(s)</p></div></div><div className="p2p-filters"><input placeholder="Buscar requisição, cotação ou NF…" value={query} onChange={e=>setQuery(e.target.value)}/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="TODOS">Todos os status</option>{statusChoices.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
-        {loading?<p className="p2p-empty">Carregando atividades…</p>:filtered.length===0?<p className="p2p-empty">Nenhuma atividade encontrada.</p>:<div className="p2p-activity-list">{filtered.map(r=><button key={r.id} className={'p2p-activity '+(selected?.id===r.id?'selected':'')} onClick={()=>{setSelected(r);setCreating(false);setError('');setNotice('')}}><div className="p2p-activity-head"><strong>Req. {r.numero_requisicao}</strong><span className={'p2p-status '+r.status_fluxo.toLowerCase()}>{statusLabels[r.status_fluxo]}</span></div><span>Cotação {r.numero_cotacao}{r.numero_nf?' · NF '+r.numero_nf:''}</span><small>Atualizada {new Date(r.atualizado_em).toLocaleString('pt-BR')}</small></button>)}</div>}</section>
+        <section className="p2p-card p2p-list"><div className="p2p-card-title"><div><h2>Atividades</h2><p>{filtered.length} registro(s)</p></div></div><div className="p2p-filters"><input placeholder="Buscar requisição, OC ou NF…" value={query} onChange={e=>setQuery(e.target.value)}/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="TODOS">Todos os status</option>{statusChoices.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
+        {loading?<p className="p2p-empty">Carregando atividades…</p>:filtered.length===0?<p className="p2p-empty">Nenhuma atividade encontrada.</p>:<div className="p2p-activity-list">{filtered.map(r=><button key={r.id} className={'p2p-activity '+(selected?.id===r.id?'selected':'')} onClick={()=>{setSelected(r);setCreating(false);setError('');setNotice('')}}><div className="p2p-activity-head"><strong>Req. {r.numero_requisicao}</strong><span className={'p2p-status '+r.status_fluxo.toLowerCase()}>{statusLabels[r.status_fluxo]}</span></div><span>OC {r.numero_cotacao||'não informada'}{r.numero_nf?' · NF '+r.numero_nf:''}</span><small>Atualizada {new Date(r.atualizado_em).toLocaleString('pt-BR')}</small></button>)}</div>}</section>
         <section className="p2p-card p2p-detail">{!selected?<div className="p2p-empty p2p-empty-detail"><div className="p2p-empty-icon">↗</div><h2>Detalhes da atividade</h2><p>Selecione uma atividade na lista ou crie uma nova para consultar documentos, status e histórico.</p></div>:<>
-          <div className="p2p-card-title"><div><p className="p2p-eyebrow">REQUISIÇÃO {selected.numero_requisicao}</p><h2>Detalhes da atividade</h2><p>Cotação {selected.numero_cotacao} · Criada em {new Date(selected.criado_em).toLocaleDateString('pt-BR')}</p></div><span className={'p2p-status '+selected.status_fluxo.toLowerCase()}>{statusLabels[selected.status_fluxo]}</span></div>
-          <div className="p2p-section"><h3>Fluxo de trabalho</h3><label>Status atual<select value={selected.status_fluxo} disabled={saving} onChange={e=>void updateActivity({status_fluxo:e.target.value as Status})}>{statusChoices.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></label><p className="p2p-help">Ao mudar o status, o banco registra automaticamente a movimentação no histórico.</p></div>
+          <div className="p2p-card-title"><div><p className="p2p-eyebrow">REQUISIÇÃO {selected.numero_requisicao}</p><h2>Detalhes da atividade</h2><p>OC {selected.numero_cotacao||'não informada'} · Criada em {new Date(selected.criado_em).toLocaleDateString('pt-BR')}</p></div><span className={'p2p-status '+selected.status_fluxo.toLowerCase()}>{statusLabels[selected.status_fluxo]}</span></div>
+          <div className="p2p-section"><h3>Fluxo de trabalho</h3><label>Nº da OC (Ordem de Compra)<input value={selected.numero_cotacao??''} onChange={e=>setSelected({...selected,numero_cotacao:e.target.value})} onBlur={()=>void updateActivity({numero_cotacao:selected.numero_cotacao?.trim()||null})} placeholder="Obrigatório antes de avançar para Compras" /></label><label>Status atual<select value={selected.status_fluxo} disabled={saving} onChange={e=>{const nextStatus=e.target.value as Status;if(nextStatus!=='ABERTA'&&!selected.numero_cotacao?.trim()){setError('Informe o Nº da OC (Ordem de Compra) antes de avançar para Compras ou qualquer etapa seguinte.');setNotice('');return}void updateActivity({status_fluxo:nextStatus})}}>{statusChoices.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></label><p className="p2p-help">Ao mudar o status, o banco registra automaticamente a movimentação no histórico.</p></div>
           <div className="p2p-section"><h3>Nota fiscal</h3><label>Número da NF<input value={selected.numero_nf??''} onChange={e=>setSelected({...selected,numero_nf:e.target.value})} onBlur={()=>void updateActivity({numero_nf:selected.numero_nf})} placeholder="Informe o número quando disponível"/></label><div className="p2p-file-row">{selected.anexo_nf_path?<><span className="p2p-file-icon">PDF</span><div className="p2p-file-meta"><strong>Nota fiscal anexada</strong><small>{selected.anexo_nf_path.split('/').pop()}</small></div><button onClick={()=>void download(selected.anexo_nf_path!,'nota-fiscal')}>Baixar NF</button></>:<span className="p2p-help">Nenhuma nota fiscal anexada.</span>}<label className="p2p-upload">Anexar NF<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>void uploadFile('nf',e.target.files?.[0])}/></label></div></div>
           <div className="p2p-section"><div className="p2p-card-title"><h3>Comprovantes de pagamento</h3><label className="p2p-upload">＋ Anexar comprovante<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>void uploadFile('pagamento',e.target.files?.[0])}/></label></div>{(selected.comprovantes_pagamento??[]).length===0?<p className="p2p-help">Nenhum comprovante anexado. Cada pagamento parcial pode ter seu próprio arquivo.</p>:<div className="p2p-files">{selected.comprovantes_pagamento.map((p,i)=><div className="p2p-file-row" key={p.path}><span className="p2p-file-icon">DOC</span><div className="p2p-file-meta"><strong>{p.nome||'Comprovante '+(i+1)}</strong><small>{p.enviado_em?new Date(p.enviado_em).toLocaleString('pt-BR'):''}</small></div><button onClick={()=>void download(p.path,p.nome||'comprovante')}>Baixar</button></div>)}</div>}</div>
           <div className="p2p-section">
