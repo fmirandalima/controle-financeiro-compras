@@ -8,7 +8,7 @@ type SankhyaStatus = 'PENDENTE'|'LANCADO'|'NAO_APLICAVEL'
 type Pagamento = { nome: string; path: string; enviado_em?: string }
 type Evento = { evento: string; status?: string; status_anterior?: string; status_novo?: string; em: string; usuario_id?: string }
 type Atividade = {
-  id: string; numero_requisicao: string; numero_cotacao: string; numero_nf: string | null;
+  id: string; numero_requisicao: string; numero_cotacao: string | null; numero_nf: string | null;
   tem_adiantamento: boolean; status_fluxo: Status; quitacao_confirmada: boolean;
   anexo_nf_path: string | null; comprovantes_pagamento: Pagamento[]; historico_fluxo: Evento[];
   formalizacao_cliente_status: Formalizacao; formalizacao_cliente_contato: string | null;
